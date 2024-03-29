@@ -14,6 +14,7 @@ import importlib.util
 
 class TrafficSlicing(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
+    port_to_slice = {}
 
     def __init__(self, *args, **kwargs):
         super(TrafficSlicing, self).__init__(*args, **kwargs)
@@ -38,7 +39,7 @@ class TrafficSlicing(app_manager.RyuApp):
         variables_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(variables_module)
 
-        self.port_to_slice = variables_module.port_to_slice
+        port_to_slice = variables_module.port_to_slice
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
