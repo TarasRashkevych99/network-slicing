@@ -17,20 +17,22 @@ class TrafficSlicing(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(TrafficSlicing, self).__init__(*args, **kwargs)
         #runtime control
+        namespace = {}
+
         with open("mac_to_port.py", "r") as file:
             mac_to_port_dict = file.read()
-        exec(mac_to_port_dict)
+        exec(mac_to_port_dict,namespace)
         self.mac_to_port = namespace.get('mac_to_port', {})  
 
         with open("slice_port.py", "r") as file:
             slice_port_dict = file.read()
-        exec(slice_port_dict)
+        exec(slice_port_dict,namespace)
         self.slice_ports = namespace.get('slice_ports', {})  
         self.end_switches = namespace.get('end_switches', {})  
 
         with open("port_to_slice.py", "r") as file:
             port_to_slice_dict = file.read()
-        exec(port_to_slice_dict)
+        exec(port_to_slice_dict,namespace)
         self.port_to_slice = namespace.get('port_to_slice', {})  
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
