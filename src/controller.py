@@ -16,7 +16,19 @@ class TrafficSlicing(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(TrafficSlicing, self).__init__(*args, **kwargs)
+        #runtime control
+        with open("mac_to_port.py", "r") as file:
+            mac_to_port_dict = file.read()
+        exec(mac_to_port_dict)
 
+        with open("slice_port.py", "r") as file:
+            slice_port_dict = file.read()
+        exec(slice_port_dict)
+
+        with open("port_to_slice.py", "r") as file:
+            port_to_slice_dict = file.read()
+        exec(port_to_slice_dict)
+        
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -58,18 +70,6 @@ class TrafficSlicing(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        #runtime control
-        with open("mac_to_port.py", "r") as file:
-            mac_to_port_dict = file.read()
-        exec(mac_to_port_dict)
-
-        with open("slice_port.py", "r") as file:
-            slice_port_dict = file.read()
-        exec(slice_port_dict)
-
-        with open("port_to_slice.py", "r") as file:
-            port_to_slice_dict = file.read()
-        exec(port_to_slice_dict)
 
         msg = ev.msg
         datapath = msg.datapath
