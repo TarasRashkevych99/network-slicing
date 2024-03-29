@@ -30,7 +30,7 @@ class TrafficSlicing(app_manager.RyuApp):
         variables_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(variables_module)
 
-        self.slice_ports = variables_module.slice_ports
+        self.slice_port = variables_module.slice_port
         self.end_switches = variables_module.end_switches
 
         #port_to_slice
