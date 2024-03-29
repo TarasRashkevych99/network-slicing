@@ -11,28 +11,7 @@ def get_positive_integer(message):
             print("Error, the value specified must to be a positive integer")  
     return user_input
 
-def reassign_slices():
-    udp_slice = get_positive_integer("Which slice to use for UDP messages : ")
-    tcp_slice = get_positive_integer("Which slice to use for TCP messages : ")
-    icmp_slice = get_positive_integer("Which slice to use for ICMP messages : ")
-
-    with open("slice_port.py", "r") as file:
-        content = file.readlines()
-
-    for i, line in enumerate(content):
-        if "udp_slice" in line:
-            content[i] = f"udp_slice = {udp_slice}\n"
-        elif "tcp_slice" in line:
-            content[i] = f"tcp_slice = {tcp_slice}\n"
-        elif "icmp_slice" in line:
-            content[i] = f"icmp_slice = {icmp_slice}\n"
-
-    with open("slice_port.py", "w") as file:
-        file.writelines(content)
-
-    return udp_slice, tcp_slice, icmp_slice
-
-def add_slice(slice_port, slice_to_add, mac_to_port, udp_slice, tcp_slice, icmp_slice):
+def add_slice(slice_port, slice_to_add, mac_to_port):
 
     input_switch = get_positive_integer("From which switch add the slice: ")
     input_port = get_positive_integer(f"From which port of s{input_switch}: ")
@@ -56,25 +35,58 @@ def add_slice(slice_port, slice_to_add, mac_to_port, udp_slice, tcp_slice, icmp_
 
     end_switches = list(slice_port.keys())
 
-    udp_slice = slice_to_add if input("Do you want to use this slice for UDP messages [y/N]: ").lower() == "y" else udp_slice
-    tcp_slice = slice_to_add if input("Do you want to use this slice for TCP messages [y/N]: ").lower() == "y" else tcp_slice
-    icmp_slice = slice_to_add if input("Do you want to use this slice for ICMP messages [y/N]: ").lower() == "y" else icmp_slice
-
-    source_code = f"""
-slice_port = {slice_port}
+    source_code = f"""slice_port = {slice_port}
 end_switches = {end_switches}
-
-udp_slice = {udp_slice}
-tcp_slice = {tcp_slice}
-icmp_slice = {icmp_slice}
 """
     with open("slice_port.py", "w") as file:
         file.write(source_code)
 
-    print(f"SUCCESS, the slice added can be identified by number {slice_to_add}")
-    return slice_port, udp_slice, tcp_slice, icmp_slice
+    print(f"\nSUCCESS, the slice added can be identified by number {slice_to_add}\n")
+    return slice_port
 
+def assign_slice(port_to_slice, slice_to_add):
+    while True:
+        n_slice = get_positive_integer("Which slice do you want to assign: ")
+        if(n_slice<slice_to_add):
+            break
+        else:
+            print("ERROR, the specified slice doesn't exists")
 
+    port = get_positive_integer("From which packet port assign the slice (if the port is already assigned, the old slice will be deactivated): ")
+
+    port_to_slice[port] = n_slice
+
+    source_code = f"""port_to_slice = {port_to_slice}"""
+
+    with open("port_to_slice.py", "w") as file:
+        file.write(source_code)
+
+    return port_to_slice
+
+def deactivate_slice(port_to_slice, slice_to_add):
+    while True:
+        n_slice = get_positive_integer("Which slice do you want to deactivate: ")
+        if(n_slice<slice_to_add):
+            break
+        else:
+            print("ERROR, the specified slice doesn't exists")
+
+    port = int(input("From which packet port (type '0' to remove it from everywhere): "))
+
+    if port == 0:
+        port_to_slice = {key: val for key, val in port_to_slice.items() if val != n_slice}
+    else:
+        if port_to_slice[port] == n_slice:
+            del port_to_slice[port]
+        else:
+            print("ERROR, the specified port-slice mapping to deactivate doesn't exists")
+
+    source_code = f"""port_to_slice = {port_to_slice}"""
+
+    with open("port_to_slice.py", "w") as file:
+        file.write(source_code)
+
+    return port_to_slice
 
 if __name__ == "__main__":
     with open("mac_to_port.py", "r") as file:
@@ -84,23 +96,22 @@ if __name__ == "__main__":
 
     slice_to_add = 1
     slice_port = {}
-    udp_slice = -1
-    tcp_slice = -1
-    icmp_slice = -1
-
+    port_to_slice = {}
 
     while True:
         while True:
-            operation = get_positive_integer("'1' to add a slice, \n'2' to activate/deactivate the existing ones \n")
+            operation = get_positive_integer("'1' to define a slice, \n'2' to activate an existing ones \n'3' to deactivate a slice \n")
 
-            if operation > 2:
-                print("Error, the value written must to be '1' or '2'")
+            if operation > 3:
+                print("Error, the value written must to be '1' or '3'")
             else:
                 break
         
         if operation == 1:
-            slice_port, udp_slice, tcp_slice, icmp_slice = add_slice(slice_port, slice_to_add, mac_to_port, udp_slice, tcp_slice, icmp_slice)
+            slice_port = add_slice(slice_port, slice_to_add, mac_to_port)
             slice_to_add = slice_to_add + 1 
         elif operation == 2:
-            udp_slice, tcp_slice, icmp_slice = reassign_slices()    
+            port_to_slice = assign_slice(port_to_slice, slice_to_add)
+        elif operation == 3:
+            port_to_slice = deactivate_slice(port_to_slice, slice_to_add)
 
