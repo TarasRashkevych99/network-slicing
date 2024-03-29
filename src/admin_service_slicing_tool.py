@@ -11,7 +11,7 @@ def get_positive_integer(message):
             print("Error, the value specified must to be a positive integer")  
     return user_input
 
-def add_slice(slice_port, slice_to_add, mac_to_port):
+def add_slice(slice_port, slice_to_add):
 
     input_switch = get_positive_integer("From which switch add the slice: ")
     input_port = get_positive_integer(f"From which port of s{input_switch}: ")
@@ -89,11 +89,6 @@ def deactivate_slice(port_to_slice, slice_to_add):
     return port_to_slice
 
 if __name__ == "__main__":
-    with open("mac_to_port.py", "r") as file:
-        mac_to_port_dict = file.read()
-
-    exec(mac_to_port_dict)
-
     slice_to_add = 1
     slice_port = {}
     port_to_slice = {}
@@ -108,7 +103,7 @@ if __name__ == "__main__":
                 break
         
         if operation == 1:
-            slice_port = add_slice(slice_port, slice_to_add, mac_to_port)
+            slice_port = add_slice(slice_port, slice_to_add)
             slice_to_add = slice_to_add + 1 
         elif operation == 2:
             port_to_slice = assign_slice(port_to_slice, slice_to_add)

@@ -9,6 +9,7 @@ from ryu.lib.packet import ether_types
 from ryu.lib.packet import udp
 from ryu.lib.packet import tcp
 from ryu.lib.packet import icmp
+import importlib.util
 
 
 class TrafficSlicing(app_manager.RyuApp):
@@ -16,24 +17,28 @@ class TrafficSlicing(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(TrafficSlicing, self).__init__(*args, **kwargs)
-        #runtime control
-        namespace = {}
 
-        with open("mac_to_port.py", "r") as file:
-            mac_to_port_dict = file.read()
-        exec(mac_to_port_dict,namespace)
-        self.mac_to_port = namespace.get('mac_to_port', {})  
+        #mac_to_port
+        spec = importlib.util.spec_from_file_location("variables", "mac_to_port.py")
+        variables_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(variables_module)
 
-        with open("slice_port.py", "r") as file:
-            slice_port_dict = file.read()
-        exec(slice_port_dict,namespace)
-        self.slice_ports = namespace.get('slice_ports', {})  
-        self.end_switches = namespace.get('end_switches', {})  
+        self.mac_to_port = variables_module.mac_to_port
 
-        with open("port_to_slice.py", "r") as file:
-            port_to_slice_dict = file.read()
-        exec(port_to_slice_dict,namespace)
-        self.port_to_slice = namespace.get('port_to_slice', {})  
+        #slice_port
+        spec = importlib.util.spec_from_file_location("variables", "slice_port.py")
+        variables_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(variables_module)
+
+        self.slice_ports = variables_module.slice_ports
+        self.end_switches = variables_module.end_switches
+
+        #port_to_slice
+        spec = importlib.util.spec_from_file_location("variables", "port_to_slice.py")
+        variables_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(variables_module)
+
+        self.port_to_slice = variables_module.port_to_slice
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
