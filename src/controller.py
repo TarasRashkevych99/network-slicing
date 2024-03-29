@@ -134,6 +134,20 @@ class TrafficSlicing(app_manager.RyuApp):
                 self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
+            elif pkt.get_protocol(icmp.icmp):
+                slice_number = next(iter(port_to_slice.values()))
+                out_port = self.slice_ports[dpid][slice_number]
+                match = datapath.ofproto_parser.OFPMatch(
+                    in_port=in_port,
+                    eth_dst=dst,
+                    eth_src=src,
+                    eth_type=ether_types.ETH_TYPE_IP,
+                    ip_proto=0x01,  # icmp
+                )
+                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                self.add_flow(datapath, 1, match, actions)
+                self._send_package(msg, datapath, in_port, actions)
+
         elif dpid not in self.end_switches:
             out_port = ofproto.OFPP_FLOOD
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
