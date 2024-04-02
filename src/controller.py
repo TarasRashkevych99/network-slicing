@@ -136,7 +136,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(icmp.icmp):
-                slice_number = next(iter(port_to_slice.values()))
+                slice_number = port_to_slice["ICMP"]
                 out_port = self.slice_ports[dpid][slice_number]
                 match = datapath.ofproto_parser.OFPMatch(
                     in_port=in_port,

@@ -88,6 +88,23 @@ def deactivate_slice(port_to_slice, slice_to_add):
 
     return port_to_slice
 
+def icmp_slice(port_to_slice, slice_to_add):
+    while True:
+        n_slice = get_positive_integer("Which slice do you want to use for ICMP: ")
+        if(n_slice<slice_to_add):
+            break
+        else:
+            print("ERROR, the specified slice doesn't exists")
+
+    port_to_slice["ICMP"] = n_slice
+
+    source_code = f"""port_to_slice = {port_to_slice}"""
+
+    with open("port_to_slice.py", "w") as file:
+        file.write(source_code)
+
+    return port_to_slice
+
 if __name__ == "__main__":
     slice_to_add = 1
     slice_port = {}
@@ -95,10 +112,10 @@ if __name__ == "__main__":
 
     while True:
         while True:
-            operation = get_positive_integer("'1' to define a slice, \n'2' to activate an existing ones \n'3' to deactivate a slice \n")
+            operation = get_positive_integer("'1' to define a slice, \n'2' to activate an existing ones \n'3' to deactivate a slice \n'4' to assign/reassign a slice for ICMP\n")
 
-            if operation > 3:
-                print("Error, the value written must to be '1' or '3'")
+            if operation > 4:
+                print("Error, the value written must to be '1' or '4'")
             else:
                 break
         
@@ -109,4 +126,7 @@ if __name__ == "__main__":
             port_to_slice = assign_slice(port_to_slice, slice_to_add)
         elif operation == 3:
             port_to_slice = deactivate_slice(port_to_slice, slice_to_add)
+        elif operation == 4:
+            port_to_slice = icmp_slice(port_to_slice, slice_to_add)
+
 
