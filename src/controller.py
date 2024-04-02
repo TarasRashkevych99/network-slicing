@@ -107,6 +107,10 @@ class TrafficSlicing(app_manager.RyuApp):
                 self._send_package(msg, datapath, in_port, actions)
 
             elif (pkt.get_protocol(udp.udp)):
+                if not pkt.get_protocol(udp.udp).dst_port in port_to_slice:
+                    return
+
+                port_to_slice[pkt.get_protocol(udp.udp).dst_port]
                 slice_number = port_to_slice[pkt.get_protocol(udp.udp).dst_port]
                 out_port = self.slice_ports[dpid][slice_number]
                 match = datapath.ofproto_parser.OFPMatch(
@@ -122,6 +126,9 @@ class TrafficSlicing(app_manager.RyuApp):
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(tcp.tcp):
+                if not pkt.get_protocol(tcp.tcp).dst_port in port_to_slice:
+                    return
+
                 slice_number = port_to_slice[pkt.get_protocol(tcp.tcp).dst_port]
                 out_port = self.slice_ports[dpid][slice_number]
                 match = datapath.ofproto_parser.OFPMatch(
@@ -136,6 +143,9 @@ class TrafficSlicing(app_manager.RyuApp):
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(icmp.icmp):
+                if not "ICMP" in port_to_slice:
+                    return
+
                 slice_number = port_to_slice["ICMP"]
                 out_port = self.slice_ports[dpid][slice_number]
                 match = datapath.ofproto_parser.OFPMatch(
