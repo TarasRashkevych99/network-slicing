@@ -18,21 +18,6 @@ class TrafficSlicing(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(TrafficSlicing, self).__init__(*args, **kwargs)
 
-        #mac_to_port
-        spec = importlib.util.spec_from_file_location("variables", "mac_to_port.py")
-        variables_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(variables_module)
-
-        self.mac_to_port = variables_module.mac_to_port
-
-        #slice_port
-        spec = importlib.util.spec_from_file_location("variables", "slice_port.py")
-        variables_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(variables_module)
-
-        self.slice_ports = variables_module.slice_port
-        self.end_switches = variables_module.end_switches
-
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -74,6 +59,21 @@ class TrafficSlicing(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
+        #mac_to_port
+        spec = importlib.util.spec_from_file_location("variables", "mac_to_port.py")
+        variables_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(variables_module)
+
+        self.mac_to_port = variables_module.mac_to_port
+
+        #slice_port
+        spec = importlib.util.spec_from_file_location("variables", "slice_port.py")
+        variables_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(variables_module)
+
+        self.slice_ports = variables_module.slice_port
+        self.end_switches = variables_module.end_switches
+
         #port_to_slice
         spec = importlib.util.spec_from_file_location("variables", "port_to_slice.py")
         variables_module = importlib.util.module_from_spec(spec)
@@ -81,6 +81,7 @@ class TrafficSlicing(app_manager.RyuApp):
 
         port_to_slice = variables_module.port_to_slice
 
+        ##
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
