@@ -60,8 +60,8 @@ class TrafficSlicing(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        topology = get_topology()
-        slices = get_slices()
+        topology = get_topology()[0]
+        slices = get_slices()[0]
 
         self.mac_to_port = topology["hosts_macs_to_switches_ports"]
         
