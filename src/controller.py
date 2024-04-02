@@ -103,7 +103,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 out_port = self.mac_to_port[dpid][dst]
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
                 match = datapath.ofproto_parser.OFPMatch(eth_dst=dst)
-                self.add_flow(datapath, 1, match, actions)
+                #self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
             elif (pkt.get_protocol(udp.udp)):
@@ -118,7 +118,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 )
 
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                self.add_flow(datapath, 2, match, actions)
+                #self.add_flow(datapath, 2, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(tcp.tcp):
@@ -132,7 +132,7 @@ class TrafficSlicing(app_manager.RyuApp):
                     ip_proto=0x06,  # tcp
                 )
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                self.add_flow(datapath, 1, match, actions)
+                #self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(icmp.icmp):
@@ -146,12 +146,12 @@ class TrafficSlicing(app_manager.RyuApp):
                     ip_proto=0x01,  # icmp
                 )
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                self.add_flow(datapath, 1, match, actions)
+                #self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
         elif dpid not in self.end_switches:
             out_port = ofproto.OFPP_FLOOD
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             match = datapath.ofproto_parser.OFPMatch(in_port=in_port)
-            self.add_flow(datapath, 1, match, actions)
+            #self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
