@@ -93,6 +93,8 @@ def add_links_among_switches(link_dict, n_switch):
     link_added = {}
 
     for i in range(n_switch):
+        link_added[i] = {}
+
         for j in range(i + 1, n_switch):
             while True:
                 link_used = input(
@@ -109,7 +111,7 @@ def add_links_among_switches(link_dict, n_switch):
                     print("Error, the name specified does not exists.")
 
             if not link_used == "":
-                link_added[i] = {"link_name": link_used, "destination_switch_id": j}
+                link_added[i][j] = link_used
 
     return link_added
 

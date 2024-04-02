@@ -37,13 +37,14 @@ class NetworkSlicingTopo(Topo):
                 "s%d" % (hosts_to_switches_map[host] + 1),
                 **host_link_config,
             )
-
-        for origin_switch_id, link_to_switch in links_among_switches.items():
-            self.addLink(
-                "s%d" % (int(origin_switch_id) + 1),
-                "s%d" % (link_to_switch["destination_switch_id"] + 1),
-                **dict(bw=links[link_to_switch["link_name"]]),
-            )
+        
+        for origin_switch_id, connections in links_among_switches.items():
+            for destination_switch_id, connection_type in connections.items():
+                self.addLink(
+                    "s%d" % (int(origin_switch_id) + 1),
+                    "s%d" % (int(destination_switch_id) + 1),
+                    **dict(bw=links[connection_type]),
+                )
 
 
 def get_topology():

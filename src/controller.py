@@ -65,7 +65,7 @@ class TrafficSlicing(app_manager.RyuApp):
 
         self.mac_to_port = topology["hosts_macs_to_switches_ports"]
         
-        self.slice_ports = slices["slice_ports"]
+        self.slice_ports = slices["slice_port"]
         self.end_switches = slices["end_switches"]
 
         port_to_slice = slices["port_to_slice"]
