@@ -60,11 +60,11 @@ class TrafficSlicing(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        topology = get_topology()[0]
-        slices = get_slices()[0]
+        topology = get_topology()
+        slices = get_slices()
 
         self.mac_to_port = topology["hosts_macs_to_switches_ports"]
-        
+
         self.slice_ports = slices["slice_port"]
         self.end_switches = slices["end_switches"]
 
@@ -92,10 +92,10 @@ class TrafficSlicing(app_manager.RyuApp):
                 out_port = self.mac_to_port[dpid][dst]
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
                 match = datapath.ofproto_parser.OFPMatch(eth_dst=dst)
-                #self.add_flow(datapath, 1, match, actions)
+                # self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
-            elif (pkt.get_protocol(udp.udp)):
+            elif pkt.get_protocol(udp.udp):
                 if not pkt.get_protocol(udp.udp).dst_port in port_to_slice:
                     return
 
@@ -111,7 +111,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 )
 
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                #self.add_flow(datapath, 2, match, actions)
+                # self.add_flow(datapath, 2, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(tcp.tcp):
@@ -128,7 +128,7 @@ class TrafficSlicing(app_manager.RyuApp):
                     ip_proto=0x06,  # tcp
                 )
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                #self.add_flow(datapath, 1, match, actions)
+                # self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
             elif pkt.get_protocol(icmp.icmp):
@@ -145,24 +145,26 @@ class TrafficSlicing(app_manager.RyuApp):
                     ip_proto=0x01,  # icmp
                 )
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                #self.add_flow(datapath, 1, match, actions)
+                # self.add_flow(datapath, 1, match, actions)
                 self._send_package(msg, datapath, in_port, actions)
 
         elif dpid not in self.end_switches:
             out_port = ofproto.OFPP_FLOOD
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             match = datapath.ofproto_parser.OFPMatch(in_port=in_port)
-            #self.add_flow(datapath, 1, match, actions)
+            # self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
+
 
 def get_slices():
     try:
         with open("slices.json") as f:
             slices = json.load(f)
-            return slices
+            return slices[0]
     except FileNotFoundError:
         print("The slices file was not found, you have to generate it first")
         exit()
+
 
 def get_topology():
     try:

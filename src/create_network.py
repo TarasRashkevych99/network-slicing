@@ -13,7 +13,7 @@ class NetworkSlicingTopo(Topo):
         # Initialize topology
         Topo.__init__(self)
 
-        topology = get_topology()[0]
+        topology = get_topology()
         number_of_hosts = topology["number_of_hosts"]
         number_of_switches = topology["number_of_switches"]
         hosts_to_switches_map = topology["hosts_to_switches_map"]
@@ -37,13 +37,13 @@ class NetworkSlicingTopo(Topo):
                 "s%d" % (hosts_to_switches_map[host] + 1),
                 **host_link_config,
             )
-        
+
         for origin_switch_id, connections in links_among_switches.items():
-            for destination_switch_id, connection_type in connections.items():
+            for destination_switch_id, link_name in connections.items():
                 self.addLink(
                     "s%d" % (int(origin_switch_id) + 1),
                     "s%d" % (int(destination_switch_id) + 1),
-                    **dict(bw=links[connection_type]),
+                    **dict(bw=links[link_name]),
                 )
 
 
@@ -51,7 +51,7 @@ def get_topology():
     try:
         with open("topology.json") as f:
             topology = json.load(f)
-            return topology
+            return topology[0]
     except FileNotFoundError:
         print("The topology file was not found, you have to generat it first")
         exit()
