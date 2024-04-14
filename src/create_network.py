@@ -33,16 +33,16 @@ class NetworkSlicingTopo(Topo):
 
         for host in hosts_to_switches_map:
             self.addLink(
-                "h%d" % (int(host) + 1),
-                "s%d" % (hosts_to_switches_map[host] + 1),
+                "h%d" % (int(host)),
+                "s%d" % (hosts_to_switches_map[host]),
                 **host_link_config,
             )
 
         for origin_switch_id, connections in links_among_switches.items():
             for destination_switch_id, link_name in connections.items():
                 self.addLink(
-                    "s%d" % (int(origin_switch_id) + 1),
-                    "s%d" % (int(destination_switch_id) + 1),
+                    "s%d" % (int(origin_switch_id)),
+                    "s%d" % (int(destination_switch_id)),
                     **dict(bw=links[link_name]),
                 )
 

@@ -15,13 +15,14 @@ def get_positive_integer(message):
     return user_input
 
 
-def get_hosts_to_switches_map(n_host, n_switch):
+def get_hosts_to_switches_map(n_host, n_switch, switches_port_next_id):
     host_to_switch = {}
-    for i in range(n_host):
+    for i in range(1, n_host + 1):
         while True:
-            switch_id = get_positive_integer(f"To which switch link the host h{i+1}: ")
+            switch_id = get_positive_integer(f"To which switch link the host h{i}: ")
             if switch_id <= n_switch:
-                host_to_switch[i] = switch_id - 1  # -1 to get right index
+                host_to_switch[i] = switch_id
+                switches_port_next_id[switch_id] += 1
                 break
             else:
                 print(f"Error, the switch must to be between 1 and {n_switch}")
@@ -40,7 +41,7 @@ def get_hosts_macs_to_switches_ports(host_to_switch):
 
         for key, value in host_to_switch.items():
             if value == switch:
-                hex_string = "{:X}".format(key + 1)
+                hex_string = "{:X}".format(key)
 
                 padded_hex_string = hex_string.zfill(12)
 
@@ -54,7 +55,7 @@ def get_hosts_macs_to_switches_ports(host_to_switch):
                 host_attached[mac_address] = port_counter
                 port_counter = port_counter + 1
 
-        mac_to_port[switch + 1] = host_attached
+        mac_to_port[switch] = host_attached
 
     return mac_to_port
 
@@ -89,19 +90,18 @@ def get_links():
     return link_dict
 
 
-def add_links_among_switches(link_dict, n_switch):
+def add_links_among_switches(link_dict, n_switch, switches_port_next_id):
     link_added = {}
+    edges_to_ports = {}
 
-    for i in range(n_switch):
-        link_added[i] = {}
-
-        for j in range(i + 1, n_switch):
+    for i in range(1, n_switch + 1):
+        for j in range(i + 1, n_switch + 1):
             while True:
                 link_used = input(
                     "Insert the link name between s"
-                    + str(i + 1)
+                    + str(i)
                     + " and s"
-                    + str(j + 1)
+                    + str(j)
                     + " (return if you don't want to add a link): "
                 )
 
@@ -111,9 +111,29 @@ def add_links_among_switches(link_dict, n_switch):
                     print("Error, the name specified does not exists.")
 
             if not link_used == "":
+                if not i in link_added:
+                    link_added[i] = {}
                 link_added[i][j] = link_used
 
-    return link_added
+                if not j in link_added:
+                    link_added[j] = {}
+                link_added[j][i] = link_used
+
+                if not i in edges_to_ports:
+                    edges_to_ports[i] = {}
+                edges_to_ports[i][j] = (
+                    switches_port_next_id[i],
+                    switches_port_next_id[j],
+                )
+
+                if not j in edges_to_ports:
+                    edges_to_ports[j] = {}
+                edges_to_ports[j][i] = edges_to_ports[i][j][::-1]
+
+                switches_port_next_id[i] += 1
+                switches_port_next_id[j] += 1
+
+    return link_added, edges_to_ports
 
 
 if __name__ == "__main__":
@@ -133,13 +153,17 @@ if __name__ == "__main__":
             f"There will be added {str(number_of_switches)} switches, from s1 to s{str(number_of_switches)}\n"
         )
 
+    switches_port_next_id = {i: 1 for i in range(1, number_of_switches + 1)}
+
     hosts_to_switches_map = get_hosts_to_switches_map(
-        number_of_hosts, number_of_switches
+        number_of_hosts, number_of_switches, switches_port_next_id
     )
 
     links = get_links()
 
-    links_among_switches = add_links_among_switches(links, number_of_switches)
+    links_among_switches, edges_to_ports = add_links_among_switches(
+        links, number_of_switches, switches_port_next_id
+    )
 
     hosts_macs_to_switches_ports = get_hosts_macs_to_switches_ports(
         hosts_to_switches_map
@@ -153,6 +177,7 @@ if __name__ == "__main__":
             "hosts_macs_to_switches_ports": hosts_macs_to_switches_ports,
             "links": links,
             "links_among_switches": links_among_switches,
+            "edges_to_ports": edges_to_ports,
         },
     )
 

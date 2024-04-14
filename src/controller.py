@@ -170,7 +170,7 @@ def get_topology():
     try:
         with open("topology.json") as f:
             topology = json.load(f)
-            return topology
+            return topology[0]
     except FileNotFoundError:
         print("The topology file was not found, you have to generate it first")
         exit()
