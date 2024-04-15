@@ -12,7 +12,6 @@ from ryu.lib.packet import icmp
 import importlib.util
 import json
 
-
 class TrafficSlicing(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
@@ -60,17 +59,20 @@ class TrafficSlicing(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
+        # IMPORT
         topology = get_topology()
+
+        hosts_to_switches_map = topology["hosts_to_switches_map"]
+        mac_to_port = topology["hosts_macs_to_switches_ports"]
+        edges_to_ports = topology["edges_to_ports"]
+        out_port_to_switch = topology["out_port_to_switch"]
+
         slices = get_slices()
 
-        self.mac_to_port = topology["hosts_macs_to_switches_ports"]
-
-        self.slice_ports = slices["slice_port"]
-        self.end_switches = slices["end_switches"]
-
         port_to_slice = slices["port_to_slice"]
+        slice_details = slices["slice_details"]
+        active_slices = slices["active_slices"]
 
-        ##
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -85,75 +87,109 @@ class TrafficSlicing(app_manager.RyuApp):
         dst = eth.dst
         src = eth.src
 
-        dpid = datapath.id
+        dpid = str(datapath.id)
 
-        if dpid in self.mac_to_port:
-            if dst in self.mac_to_port[dpid]:
-                out_port = self.mac_to_port[dpid][dst]
-                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                match = datapath.ofproto_parser.OFPMatch(eth_dst=dst)
-                # self.add_flow(datapath, 1, match, actions)
-                self._send_package(msg, datapath, in_port, actions)
+        if str(dst).startswith("33:33"):
+            return
 
-            elif pkt.get_protocol(udp.udp):
-                if not pkt.get_protocol(udp.udp).dst_port in port_to_slice:
-                    return
+        print("DPID "+dpid)
+        print("IN_PORT "+str(in_port))
+        print("DEST "+str(dst))
 
-                port_to_slice[pkt.get_protocol(udp.udp).dst_port]
-                slice_number = port_to_slice[pkt.get_protocol(udp.udp).dst_port]
-                out_port = self.slice_ports[dpid][slice_number]
-                match = datapath.ofproto_parser.OFPMatch(
-                    in_port=in_port,
-                    eth_dst=dst,
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=0x11,  # udp
-                    udp_dst=pkt.get_protocol(udp.udp).dst_port,
-                )
+        try:
+            prev_switch = out_port_to_switch[dpid][str(in_port)] # switch from which I've received the package
+        except:
+            prev_switch = None # so package received from a host
+        
+        print("PREV_SWITCH "+str(prev_switch))
 
-                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                # self.add_flow(datapath, 2, match, actions)
-                self._send_package(msg, datapath, in_port, actions)
+        if dpid in mac_to_port and dst in mac_to_port[dpid]: # if destination reached in next step 
+            # TODO also consider if host belongs to slice
+            out_port = mac_to_port[dpid][dst]
+            
+            print("DELIVERING TO HOST "+str(dst))
+            print("OUT PORT "+str(out_port)+"\n")
 
-            elif pkt.get_protocol(tcp.tcp):
-                if not pkt.get_protocol(tcp.tcp).dst_port in port_to_slice:
-                    return
-
-                slice_number = port_to_slice[pkt.get_protocol(tcp.tcp).dst_port]
-                out_port = self.slice_ports[dpid][slice_number]
-                match = datapath.ofproto_parser.OFPMatch(
-                    in_port=in_port,
-                    eth_dst=dst,
-                    eth_src=src,
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=0x06,  # tcp
-                )
-                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                # self.add_flow(datapath, 1, match, actions)
-                self._send_package(msg, datapath, in_port, actions)
-
-            elif pkt.get_protocol(icmp.icmp):
-                if not "ICMP" in port_to_slice:
-                    return
-
-                slice_number = port_to_slice["ICMP"]
-                out_port = self.slice_ports[dpid][slice_number]
-                match = datapath.ofproto_parser.OFPMatch(
-                    in_port=in_port,
-                    eth_dst=dst,
-                    eth_src=src,
-                    eth_type=ether_types.ETH_TYPE_IP,
-                    ip_proto=0x01,  # icmp
-                )
-                actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                # self.add_flow(datapath, 1, match, actions)
-                self._send_package(msg, datapath, in_port, actions)
-
-        elif dpid not in self.end_switches:
-            out_port = ofproto.OFPP_FLOOD
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            match = datapath.ofproto_parser.OFPMatch(in_port=in_port)
-            # self.add_flow(datapath, 1, match, actions)
+            match = datapath.ofproto_parser.OFPMatch(eth_dst=dst)
+            self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
+
+        elif (pkt.get_protocol(udp.udp)):
+            slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+
+            print("DELIVERING THROUGH SLICE "+slice_number)
+            print("OUT PORT "+str(out_port)+"\n")
+
+            match = datapath.ofproto_parser.OFPMatch(
+                in_port=in_port,
+                eth_dst=dst,
+                eth_type=ether_types.ETH_TYPE_IP,
+                ip_proto=0x11,  # udp
+                udp_dst=pkt.get_protocol(udp.udp).dst_port,
+            )
+
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            self.add_flow(datapath, 1, match, actions)
+            self._send_package(msg, datapath, in_port, actions)
+
+        elif pkt.get_protocol(tcp.tcp):
+            slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
+            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+
+            print("DELIVERING THROUGH SLICE "+slice_number)
+            print("OUT PORT "+str(out_port)+"\n")
+
+            match = datapath.ofproto_parser.OFPMatch(
+                in_port=in_port,
+                eth_dst=dst,
+                eth_src=src,
+                eth_type=ether_types.ETH_TYPE_IP,
+                ip_proto=0x06,  # tcp
+                tcp_dst=pkt.get_protocol(tcp.tcp).dst_port,
+            )
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            self.add_flow(datapath, 1, match, actions)
+            self._send_package(msg, datapath, in_port, actions)
+
+        elif pkt.get_protocol(icmp.icmp):
+            slice_number = str(port_to_slice["ICMP"])
+            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+
+            print("DELIVERING THROUGH SLICE "+slice_number)
+            print("OUT PORT "+str(out_port)+"\n")
+
+            match = datapath.ofproto_parser.OFPMatch(
+                in_port=in_port,
+                eth_dst=dst,
+                eth_src=src,
+                eth_type=ether_types.ETH_TYPE_IP,
+                ip_proto=0x01,  # icmp
+            )
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            self.add_flow(datapath, 1, match, actions)
+            self._send_package(msg, datapath, in_port, actions)
+        else:
+            print("ERROR, I'm stucked \n")
+
+def get_output_port(dpid,prev_switch,slice_switches,edges_to_ports):
+    dpid_index = slice_switches.index(int(dpid))
+
+    neighbor_switch_indexes = [dpid_index - 1, dpid_index + 1]
+
+    if neighbor_switch_indexes[0] == -1:
+        next_switch = slice_switches[neighbor_switch_indexes[1]]
+    elif neighbor_switch_indexes[1] == len(slice_switches):
+        next_switch = slice_switches[neighbor_switch_indexes[0]]
+    elif str(slice_switches[neighbor_switch_indexes[0]]) == prev_switch:
+        next_switch = slice_switches[neighbor_switch_indexes[1]]
+    else:
+        next_switch = slice_switches[neighbor_switch_indexes[0]]
+    
+    out_port = edges_to_ports[dpid][str(next_switch)][0]
+
+    return out_port
 
 
 def get_slices():

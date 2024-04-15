@@ -21,22 +21,45 @@ def get_positive_integer(message, allow_zero = False):
     return user_input
 
 
-def add_slice(slice_nodes_path, port_to_slice, slice_counter):
+def add_slice(slice_details, port_to_slice, slice_counter):
 
-    slice_nodes_path_list = []
+    slice_hosts_list = []
+    slice_switch_path_list = []
+
+    while True:
+        host_to_add = get_positive_integer(f"Submit a host to insert in the slice {slice_counter} (type '0' when all the hosts are added)? ", True)
+        if host_to_add != 0:
+            # TODO check if host exists
+            if host_to_add in slice_hosts_list:
+                print("ERROR, the specified host already belongs to the slice. \n")
+            else:
+                slice_hosts_list.append(host_to_add)
+        else:
+            break
 
     while True:
         switch_to_add = get_positive_integer(f"Which is the next switch belonging to the path of slice {slice_counter} (type '0' when all the switches are added)? ", True)
         if switch_to_add != 0:
             # TODO check if path is feasible
-            if switch_to_add in slice_nodes_path_list:
+            if switch_to_add in slice_switch_path_list:
                 print("ERROR, the specified switch already belongs to the path. \n")
             else:
-                slice_nodes_path_list.append(switch_to_add)
+                slice_switch_path_list.append(switch_to_add)
         else:
             break
 
-    slice_nodes_path[str(slice_counter)] = slice_nodes_path_list
+    queue_capacity = []
+
+    for i in range(len(slice_switch_path_list) - 1):
+        # TODO compare with available capacity
+        link_capacity = get_positive_integer(f"Specify the capacity of the virtual queue between s{slice_switch_path_list[i]} and s{slice_switch_path_list[i+1]}: ")
+        queue_capacity.append(link_capacity)
+
+    slice_details[str(slice_counter)] = {
+        "hosts" : slice_hosts_list,
+        "switches" : slice_switch_path_list,
+        "capacity" : queue_capacity
+    }
 
     if input("Do you want to use this slice for ICMP (y/N)? ").lower() == "y":
         port = "ICMP"
@@ -48,7 +71,7 @@ def add_slice(slice_nodes_path, port_to_slice, slice_counter):
     port_to_slice[port] = slice_counter
 
     print(f"\nSUCCESS, the slice added can be identified by number {slice_counter}\n")
-    return slice_nodes_path, port_to_slice
+    return slice_details, port_to_slice
 
 
 def activate_slice(is_slice_active, slice_counter):
@@ -76,31 +99,9 @@ def deactivate_slice(is_slice_active, slice_counter):
 
     return is_slice_active
 
-def define_virtual_queue(slice_nodes_path, virtual_queues, slice_counter):
-    while True:
-        n_slice = get_positive_integer("On which slice do you want to add a virtual queue: ")
-        if n_slice < slice_counter:
-            break
-        else:
-            print("ERROR, the specified slice doesn't exists")
-
-    queue_capacity = []
-
-    for i in range(len(slice_nodes_path[str(n_slice)]) - 1):
-        # TODO compare with available capacity
-        link_capacity = get_positive_integer(f"Specify the capacity of the virtual queue between s{slice_nodes_path[str(n_slice)][i]} and s{slice_nodes_path[str(n_slice)][i+1]}: ")
-        queue_capacity.append(link_capacity)
-
-    if str(n_slice) not in virtual_queues:
-        virtual_queues[str(n_slice)] = {}
-
-    virtual_queues[str(n_slice)][len(virtual_queues[str(n_slice)])] = queue_capacity
-
-    return virtual_queues
-
-def execute_operation(operation, slice_nodes_path, port_to_slice, slice_counter, is_slice_active, virtual_queues, slices_json_path):
+def execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path):
     if operation == 1:
-        slice_nodes_path, port_to_slice = add_slice(slice_nodes_path, port_to_slice, slice_counter)
+        slice_details, port_to_slice = add_slice(slice_details, port_to_slice, slice_counter)
         is_slice_active[str(slice_counter)] = True
         slice_counter = slice_counter + 1
     elif operation == 2:
@@ -108,23 +109,20 @@ def execute_operation(operation, slice_nodes_path, port_to_slice, slice_counter,
     elif operation == 3:
         is_slice_active = deactivate_slice(is_slice_active, slice_counter)
     elif operation == 4:
-        virtual_queues = define_virtual_queue(slice_nodes_path, virtual_queues, slice_counter)
-    elif operation == 5:
         exit(0)
 
     slices_options = (
         {
             "port_to_slice": port_to_slice,
-            "slice_nodes_path": slice_nodes_path,
+            "slice_details": slice_details,
             "active_slices": is_slice_active,
-            "virtual_queues" : virtual_queues,
         },
     )
 
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
 
-    return slice_counter, slice_nodes_path, port_to_slice, is_slice_active
+    return slice_counter, slice_details, port_to_slice, is_slice_active
 
 if __name__ == "__main__":
     slices_json_path = "slices.json"
@@ -146,19 +144,17 @@ if __name__ == "__main__":
         
     if create_slices_json:
         slice_counter = 1
-        slice_nodes_path = {}
+        slice_details = {}
         port_to_slice = {}
         is_slice_active = {}
-        virtual_queues = {}
-        slice_counter, slice_nodes_path, port_to_slice, is_slice_active = execute_operation(1, slice_nodes_path, port_to_slice, slice_counter, is_slice_active, virtual_queues, slices_json_path)
+        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path)
     else:
         with open(slices_json_path, "r", encoding="utf-8") as f:
             slices_options = json.load(f)[0]
 
-        slice_nodes_path = slices_options["slice_nodes_path"]
+        slice_details = slices_options["slice_details"]
         port_to_slice = slices_options["port_to_slice"]
         is_slice_active = slices_options["active_slices"]
-        virtual_queues = slices_options["virtual_queues"]
         slice_counter = int(max(is_slice_active, key=int)) + 1
 
 
@@ -168,13 +164,12 @@ if __name__ == "__main__":
                 "'1' to define a slice, \n"
                 + "'2' to activate an existing slice \n"
                 + "'3' to deactivate a slice \n"
-                + "'4' to define a virtual queue \n"
-                + "'5' to exit \n"
+                + "'4' to exit \n"
             )
 
-            if operation > 5:
-                print("Error, the value written must to be between '1' and '5'")
+            if operation > 4:
+                print("Error, the value written must to be between '1' and '4'")
             else:
                 break
 
-        slice_counter, slice_nodes_path, port_to_slice, is_slice_active = execute_operation(operation, slice_nodes_path, port_to_slice, slice_counter, is_slice_active, virtual_queues, slices_json_path)
+        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path)

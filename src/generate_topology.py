@@ -93,6 +93,7 @@ def get_links():
 def add_links_among_switches(link_dict, n_switch, switches_port_next_id):
     link_added = {}
     edges_to_ports = {}
+    out_port_to_switch = {}
 
     for i in range(1, n_switch + 1):
         for j in range(i + 1, n_switch + 1):
@@ -130,10 +131,18 @@ def add_links_among_switches(link_dict, n_switch, switches_port_next_id):
                     edges_to_ports[j] = {}
                 edges_to_ports[j][i] = edges_to_ports[i][j][::-1]
 
+                if not i in out_port_to_switch:
+                    out_port_to_switch[i] = {}
+                out_port_to_switch[i][switches_port_next_id[i]] = j
+
+                if not j in out_port_to_switch:
+                    out_port_to_switch[j] = {}
+                out_port_to_switch[j][switches_port_next_id[j]] = i
+
                 switches_port_next_id[i] += 1
                 switches_port_next_id[j] += 1
 
-    return link_added, edges_to_ports
+    return link_added, edges_to_ports, out_port_to_switch
 
 
 if __name__ == "__main__":
@@ -161,7 +170,7 @@ if __name__ == "__main__":
 
     links = get_links()
 
-    links_among_switches, edges_to_ports = add_links_among_switches(
+    links_among_switches, edges_to_ports, out_port_to_switch = add_links_among_switches(
         links, number_of_switches, switches_port_next_id
     )
 
@@ -178,6 +187,7 @@ if __name__ == "__main__":
             "links": links,
             "links_among_switches": links_among_switches,
             "edges_to_ports": edges_to_ports,
+            "out_port_to_switch": out_port_to_switch
         },
     )
 
