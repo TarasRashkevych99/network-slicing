@@ -182,7 +182,7 @@ def get_output_port(dpid,prev_switch,slice_switches,edges_to_ports):
         next_switch = slice_switches[neighbor_switch_indexes[1]]
     elif neighbor_switch_indexes[1] == len(slice_switches):
         next_switch = slice_switches[neighbor_switch_indexes[0]]
-    elif str(slice_switches[neighbor_switch_indexes[0]]) == prev_switch:
+    elif str(slice_switches[neighbor_switch_indexes[0]]) == str(prev_switch):
         next_switch = slice_switches[neighbor_switch_indexes[1]]
     else:
         next_switch = slice_switches[neighbor_switch_indexes[0]]
