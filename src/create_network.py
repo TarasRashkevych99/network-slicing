@@ -40,11 +40,12 @@ class NetworkSlicingTopo(Topo):
 
         for origin_switch_id, connections in links_among_switches.items():
             for destination_switch_id, link_name in connections.items():
-                self.addLink(
-                    "s%d" % (int(origin_switch_id)),
-                    "s%d" % (int(destination_switch_id)),
-                    **dict(bw=links[link_name]),
-                )
+                if(origin_switch_id < destination_switch_id): #in order to avoid double links
+                    self.addLink(
+                        "s%d" % (int(origin_switch_id)),
+                        "s%d" % (int(destination_switch_id)),
+                        **dict(bw=links[link_name]),
+                    )
 
 
 def get_topology():
