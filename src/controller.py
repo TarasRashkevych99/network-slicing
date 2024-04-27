@@ -116,7 +116,11 @@ class TrafficSlicing(app_manager.RyuApp):
             self._send_package(msg, datapath, in_port, actions)
 
         elif (pkt.get_protocol(udp.udp)):
-            slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+            if str(pkt.get_protocol(udp.udp).dst_port) in port_to_slice.keys():
+                slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+            else:
+                slice_number = str(port_to_slice["ICMP"])
+
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
 
             print("DELIVERING THROUGH SLICE "+slice_number)
@@ -129,13 +133,19 @@ class TrafficSlicing(app_manager.RyuApp):
                 ip_proto=0x11,  # udp
                 udp_dst=pkt.get_protocol(udp.udp).dst_port,
             )
+            print("1" +datapath.ofproto_parser)
+            print("2"+[datapath.ofproto_parser.OFPActionOutput(out_port)])
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
 
         elif pkt.get_protocol(tcp.tcp):
-            slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
+            if str(pkt.get_protocol(tcp.tcp).dst_port) in port_to_slice.keys():
+                slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
+            else:
+                slice_number = str(port_to_slice["ICMP"])
+
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
 
             print("DELIVERING THROUGH SLICE "+slice_number)
@@ -149,6 +159,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 ip_proto=0x06,  # tcp
                 tcp_dst=pkt.get_protocol(tcp.tcp).dst_port,
             )
+
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
