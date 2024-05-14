@@ -104,7 +104,36 @@ class TrafficSlicing(app_manager.RyuApp):
         print("PREV_SWITCH "+str(prev_switch))
 
         if dpid in mac_to_port and dst in mac_to_port[dpid]: # if destination reached in next step 
-            # TODO also consider if host belongs to slice
+            
+            # check if destination host belongs to used slice
+            dest_host_id = convert_mac_to_host_id(dst)
+
+            slice_number = 0
+
+            if (pkt.get_protocol(udp.udp)):
+                if str(pkt.get_protocol(udp.udp).dst_port) in port_to_slice.keys():
+                    slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+            elif (pkt.get_protocol(tcp.tcp)):
+                if str(pkt.get_protocol(tcp.tcp).dst_port) in port_to_slice.keys():
+                    slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
+            elif (pkt.get_protocol(icmp.icmp)):
+                slice_number = str(port_to_slice["ICMP"])
+
+            if slice_number == 0:
+                if "DEFAULT" in port_to_slice.keys():
+                    slice_number = str(port_to_slice["DEFAULT"])
+                else:
+                    return
+
+            if not active_slices[str(slice_number)] == True:
+                print("ERROR, the slice to use is currently disabled")
+                return
+
+            if not dest_host_id in slice_details[str(slice_number)]["hosts"]:
+                print("ERROR, the slice to use doesn't involve the destination host")
+                return
+            # ended check
+
             out_port = mac_to_port[dpid][dst]
             
             print("DELIVERING TO HOST "+str(dst))
@@ -118,8 +147,15 @@ class TrafficSlicing(app_manager.RyuApp):
         elif (pkt.get_protocol(udp.udp)):
             if str(pkt.get_protocol(udp.udp).dst_port) in port_to_slice.keys():
                 slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+            elif "DEFAULT" in port_to_slice.keys():
+                slice_number = str(port_to_slice["DEFAULT"])
             else:
-                slice_number = str(port_to_slice["ICMP"])
+                print("It is neither specified the slice to use for port "+str(pkt.get_protocol(udp.udp).dst_port)+" nor the one to use as default")
+                return
+
+            if not active_slices[str(slice_number)] == True:
+                print("ERROR, the slice to use is currently disabled")
+                return
 
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
 
@@ -133,8 +169,6 @@ class TrafficSlicing(app_manager.RyuApp):
                 ip_proto=0x11,  # udp
                 udp_dst=pkt.get_protocol(udp.udp).dst_port,
             )
-            print("1" +datapath.ofproto_parser)
-            print("2"+[datapath.ofproto_parser.OFPActionOutput(out_port)])
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(datapath, 1, match, actions)
@@ -143,8 +177,15 @@ class TrafficSlicing(app_manager.RyuApp):
         elif pkt.get_protocol(tcp.tcp):
             if str(pkt.get_protocol(tcp.tcp).dst_port) in port_to_slice.keys():
                 slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
+            elif "DEFAULT" in port_to_slice.keys():
+                slice_number = str(port_to_slice["DEFAULT"])
             else:
-                slice_number = str(port_to_slice["ICMP"])
+                print("It is neither specified the slice to use for port "+str(pkt.get_protocol(tcp.tcp).dst_port)+" nor the one to use as default")
+                return
+
+            if not active_slices[str(slice_number)] == True:
+                print("ERROR, the slice to use is currently disabled")
+                return
 
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
 
@@ -159,13 +200,21 @@ class TrafficSlicing(app_manager.RyuApp):
                 ip_proto=0x06,  # tcp
                 tcp_dst=pkt.get_protocol(tcp.tcp).dst_port,
             )
-
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
 
         elif pkt.get_protocol(icmp.icmp):
-            slice_number = str(port_to_slice["ICMP"])
+            if "ICMP" in port_to_slice.keys():
+                slice_number = str(port_to_slice["ICMP"])
+            else:
+                print("It is not specified the slice to use for ICMP")
+                return
+
+            if not active_slices[str(slice_number)] == True:
+                print("ERROR, the slice to use is currently disabled")
+                return
+
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
 
             print("DELIVERING THROUGH SLICE "+slice_number)
@@ -221,3 +270,9 @@ def get_topology():
     except FileNotFoundError:
         print("The topology file was not found, you have to generate it first")
         exit()
+
+def convert_mac_to_host_id(mac_str):
+    mac_str = mac_str.replace(':', '')
+
+    host_id = int(mac_str)
+    return host_id

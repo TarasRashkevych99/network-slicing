@@ -95,9 +95,11 @@ def add_slice(slice_details, port_to_slice, slice_counter, available_link_capaci
 
     if input("Do you want to use this slice for ICMP (y/N)? ").lower() == "y":
         port = "ICMP"
+    elif input("Do you want to use this slice for the ACK responses or as default slice (y/N)? ").lower() == "y":
+        port = "DEFAULT"
     else:
         port = get_positive_integer(
-            "From which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
+            "To which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
         )
 
     port_to_slice[port] = slice_counter
