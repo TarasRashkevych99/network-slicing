@@ -31,6 +31,18 @@ def get_topology():
         print("The topology file was not found, you have to generate it first")
         exit()
 
+def get_port_from_slice(my_dict, target_value):
+    for key, value in my_dict.items():
+        if value == target_value:
+            return key
+    return None 
+
+def convert_number_to_mac(number):
+    hex_str = format(number, '012x')
+
+    mac_str = ':'.join(hex_str[i:i+2] for i in range(0, 12, 2))
+    return mac_str
+
 if __name__ == "__main__":
     topology = get_topology() 
     n_switches = topology["number_of_switches"]
@@ -38,8 +50,12 @@ if __name__ == "__main__":
 
     slices = get_slices()
     slices_defined = slices["slice_details"]
-    
+    port_to_slice = slices["port_to_slice"]
+
     queues_definition = []
+    queues_usage = []
+
+    queue_counter = 1
 
     for i in range(n_switches): # for every switch
         switch_id = str(i + 1)
@@ -47,12 +63,13 @@ if __name__ == "__main__":
 
         for port in switch_ports: # for every port of the switch
             dest_switch = switches_ports[switch_id][port]
-            
+
+            link_capacity = topology["links"][topology["links_among_switches"][switch_id][str(switches_ports[switch_id][port])]]
+
             queue_definition = f"""sudo ovs-vsctl set port s{switch_id}-eth{port} qos=@newqos -- \\
 --id=@qos-s{switch_id}-eth{port} create QoS type=linux-htb \\
-other-config:max-rate=10000000000 \\ \n"""
+other-config:max-rate={link_capacity * 1000 * 1000} \\ \n""" # TODO change max rate
 
-            queue_counter = 1
             queues_id = []
             queues_rate = []
 
@@ -62,21 +79,36 @@ other-config:max-rate=10000000000 \\ \n"""
                 queue_capacity = get_queue_capacity(slice_switches, int(switch_id), dest_switch, slices_defined[slice_key]["capacity"])
 
                 if queue_capacity != 0 :
-                    queues_id.append(f" queues:{queue_counter}=@{queue_counter}q-s{switch_id}-eth{port}")
-                    queues_rate.append(f" --id=@{queue_counter}q-s{switch_id}-eth{port} create queue other-config:min-rate=1000 other-config:max-rate={queue_capacity*8*1024*1024}")
-                    # queues_rate.append(f" --id=@{queue_counter}q-s{switch_id}-eth{port} create queue other-config:min-rate=1000 other-config:max-rate={queue_capacity}")
+                    # define queue
+                    queue_id = f"{queue_counter}q-s{switch_id}-eth{port}"
+                    queues_id.append(f"queues:{queue_counter}=@{queue_id}")
+                    queues_rate.append(f" --id=@{queue_id} create queue other-config:min-rate=1000 other-config:max-rate={queue_capacity*1000*1000}")
 
+                    # define queue usage
+                    slice_application_port = get_port_from_slice(port_to_slice, int(slice_key))
+
+                    queue_usage = ""
+
+                    if slice_application_port == "ICMP": 
+                        queue_usage = f"sudo ovs-ofctl add-flow s{switch_id} ip,priority=65500,nw_src={convert_number_to_mac(int(switch_id))},nw_dst={convert_number_to_mac(switches_ports[switch_id][port])},idle_timeout=0,actions=set_queue:{queue_counter},normal"
+                    elif slice_application_port == "DEFAULT":
+                        queue_usage = f"sudo ovs-ofctl add-flow s{switch_id} icmp,priority=65500,nw_src={convert_number_to_mac(int(switch_id))},nw_dst={convert_number_to_mac(switches_ports[switch_id][port])},idle_timeout=0,actions=set_queue:{queue_counter},normal"
+                    else:
+                        queue_usage = f"sudo ovs-ofctl add-flow s{switch_id} ip,priority=65500,nw_src={convert_number_to_mac(int(switch_id))},nw_dst={convert_number_to_mac(switches_ports[switch_id][port])},tp_dst={slice_application_port},idle_timeout=0,actions=set_queue:{queue_counter},normal"
+
+                    queues_usage.append(queue_usage)
 
                     queue_counter = queue_counter + 1
             
-            for queue in queues_id:
-                queue_definition = queue_definition + queue + "\n"
+            queues_id[len(queues_id)-1] = queues_id[len(queues_id)-1]+" --"
 
-            for rate in queues_rate:
-                queue_definition = queue_definition + rate + "\n"
+            queue_definition = queue_definition + " \ \n".join(queues_id) + " \ \n"
+
+            queue_definition = queue_definition + " -- \ \n".join(queues_rate)
 
             queues_definition.append(queue_definition)
+            
 
     f = open("queues.sh", "w")
-    f.write('\n'.join(queues_definition))
+    f.write('\n\n'.join(queues_definition) + '\n\n' + '\n\n'.join(queues_usage))
     f.close()
