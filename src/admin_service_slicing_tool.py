@@ -29,7 +29,7 @@ def get_topology():
         print("The topology file was not found, you have to generate it first")
         exit()
 
-def add_slice(slice_details, port_to_slice, slice_counter, available_link_capacity): 
+def add_slice(slice_details, slice_counter, available_link_capacity): 
     topology = get_topology() 
 
     slice_hosts_list = []
@@ -93,19 +93,8 @@ def add_slice(slice_details, port_to_slice, slice_counter, available_link_capaci
         "capacity" : queue_capacity
     }
 
-    if input("Do you want to use this slice for ICMP (y/N)? ").lower() == "y":
-        port = "ICMP"
-    elif input("Do you want to use this slice for the ACK responses or as default slice (y/N)? ").lower() == "y":
-        port = "DEFAULT"
-    else:
-        port = get_positive_integer(
-            "To which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
-        )
-
-    port_to_slice[port] = slice_counter
-
     print(f"\nSUCCESS, the slice added can be identified by number {slice_counter}\n")
-    return slice_details, port_to_slice, available_link_capacity
+    return slice_details, available_link_capacity
 
 
 def activate_slice(is_slice_active, slice_counter):
@@ -133,9 +122,30 @@ def deactivate_slice(is_slice_active, slice_counter):
 
     return is_slice_active
 
+def assign_slice(slice_counter, port_to_slice):
+    n_slice = int(input("Which slice do you want to assign: "))
+
+    if n_slice >= slice_counter:
+        print("Error, the slice specified doesn't exist \n")
+        return port_to_slice
+
+    if input("Do you want to use this slice for ICMP (y/N)? ").lower() == "y":
+        port = "ICMP"
+    elif input("Do you want to use this slice for the ACK responses or as default slice (y/N)? ").lower() == "y":
+        port = "DEFAULT"
+    else:
+        port = get_positive_integer(
+            "To which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
+        )
+
+    port_to_slice[port] = n_slice
+
+    return port_to_slice
+
+
 def execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
     if operation == 1:
-        slice_details, port_to_slice, available_link_capacity = add_slice(slice_details, port_to_slice, slice_counter, available_link_capacity)
+        slice_details, available_link_capacity = add_slice(slice_details, slice_counter, available_link_capacity)
         is_slice_active[str(slice_counter)] = True
         slice_counter = slice_counter + 1
     elif operation == 2:
@@ -143,6 +153,8 @@ def execute_operation(operation, slice_details, port_to_slice, slice_counter, is
     elif operation == 3:
         is_slice_active = deactivate_slice(is_slice_active, slice_counter)
     elif operation == 4:
+        port_to_slice = assign_slice(slice_counter, port_to_slice)
+    elif operation == 5:
         exit(0)
 
     slices_options = (
@@ -214,11 +226,12 @@ if __name__ == "__main__":
                 "'1' to define a slice, \n"
                 + "'2' to activate an existing slice \n"
                 + "'3' to deactivate a slice \n"
-                + "'4' to exit \n"
+                + "'4' to assign a slice \n"
+                + "'5' to exit \n"
             )
 
-            if operation > 4:
-                print("Error, the value written must to be between '1' and '4'")
+            if operation > 5:
+                print("Error, the value written must to be between '1' and '5'")
             else:
                 break
 

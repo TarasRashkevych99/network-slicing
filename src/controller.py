@@ -158,6 +158,8 @@ class TrafficSlicing(app_manager.RyuApp):
                 return
 
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            if out_port == -1:
+                return
 
             print("DELIVERING THROUGH SLICE "+slice_number)
             print("OUT PORT "+str(out_port)+"\n")
@@ -188,6 +190,8 @@ class TrafficSlicing(app_manager.RyuApp):
                 return
 
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            if out_port == -1:
+                return
 
             print("DELIVERING THROUGH SLICE "+slice_number)
             print("OUT PORT "+str(out_port)+"\n")
@@ -216,6 +220,8 @@ class TrafficSlicing(app_manager.RyuApp):
                 return
 
             out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            if out_port == -1:
+                return
 
             print("DELIVERING THROUGH SLICE "+slice_number)
             print("OUT PORT "+str(out_port)+"\n")
@@ -234,6 +240,11 @@ class TrafficSlicing(app_manager.RyuApp):
             print("ERROR, I'm stucked \n")
 
 def get_output_port(dpid,prev_switch,slice_switches,edges_to_ports):
+    if int(dpid) in slice_switches: 
+        dpid_index = slice_switches.index(int(dpid))
+    else: 
+        return -1
+
     dpid_index = slice_switches.index(int(dpid))
 
     neighbor_switch_indexes = [dpid_index - 1, dpid_index + 1]
