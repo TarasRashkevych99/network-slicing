@@ -171,7 +171,7 @@ def deactivate_slice(is_slice_active, slice_counter):
 
     return is_slice_active
 
-def assign_slice(slice_counter, port_to_slice):
+def assign_slice(slice_counter, port_to_slice, slice_to_port):
     n_slice = int(input("Which slice do you want to assign: "))
 
     if n_slice >= slice_counter:
@@ -186,11 +186,12 @@ def assign_slice(slice_counter, port_to_slice):
         )
 
     port_to_slice[port] = n_slice
+    slice_to_port[n_slice] = port
 
-    return port_to_slice
+    return port_to_slice, slice_to_port
 
 
-def execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
+def execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
     if operation == 1:
         slice_details, available_link_capacity = add_slice(slice_details, slice_counter, available_link_capacity)
         is_slice_active[str(slice_counter)] = True
@@ -200,13 +201,14 @@ def execute_operation(operation, slice_details, port_to_slice, slice_counter, is
     elif operation == 3:
         is_slice_active = deactivate_slice(is_slice_active, slice_counter)
     elif operation == 4:
-        port_to_slice = assign_slice(slice_counter, port_to_slice)
+        port_to_slice, slice_to_port = assign_slice(slice_counter, port_to_slice, slice_to_port)
     elif operation == 5:
         exit(0)
 
     slices_options = (
         {
             "port_to_slice": port_to_slice,
+            "slice_to_port": slice_to_port,
             "slice_details": slice_details,
             "active_slices": is_slice_active,
             "available_link_capacity": available_link_capacity
@@ -216,7 +218,7 @@ def execute_operation(operation, slice_details, port_to_slice, slice_counter, is
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
 
-    return slice_counter, slice_details, port_to_slice, is_slice_active
+    return slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active
 
 if __name__ == "__main__":
     slices_json_path = "slices.json"
@@ -240,6 +242,7 @@ if __name__ == "__main__":
         slice_counter = 1
         slice_details = {}
         port_to_slice = {}
+        slice_to_port = {}
         is_slice_active = {}
 
         topology = get_topology()
@@ -254,13 +257,14 @@ if __name__ == "__main__":
 
                 available_link_capacity[switch1][switch2] = link_full_capacity
 
-        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
     else:
         with open(slices_json_path, "r", encoding="utf-8") as f:
             slices_options = json.load(f)[0]
 
         slice_details = slices_options["slice_details"]
         port_to_slice = slices_options["port_to_slice"]
+        slice_to_port = slices_options["slice_to_port"]
         is_slice_active = slices_options["active_slices"]
         available_link_capacity = slices_options["available_link_capacity"]
 
@@ -282,4 +286,4 @@ if __name__ == "__main__":
             else:
                 break
 
-        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
