@@ -63,42 +63,75 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
         else:
             break
 
-    path_between_hosts_dict = {}
+    edge_switches = []
     for i in range(len(slice_hosts_list)):
-        for j in range(i+1,len(slice_hosts_list)):
-            path_between_hosts = []
+        switch_to_consider = topology["hosts_to_switches_map"][str(slice_hosts_list[i])]
+
+        if not switch_to_consider in edge_switches:
+            edge_switches.append(switch_to_consider)
+    
+    edge_switches.sort()
+
+    path_between_hosts_dict = {}
+    for i in range(len(edge_switches)):
+        for j in range(i+1,len(edge_switches)):
+            path_between_switches = [int(edge_switches[i])]
 
             while True:
-                switch_to_add = get_positive_integer(f"Which is the next switch belonging to the path of slice {slice_counter} between h{slice_hosts_list[i]} and h{slice_hosts_list[j]} (type '0' when all the switches are added)? ", True)
+                switch_to_add = get_positive_integer(f"Which is the next switch belonging to the path of slice {slice_counter} between s{edge_switches[i]} and s{edge_switches[j]}? (type '0' when all the switches are added) ", True)
                 if switch_to_add != 0:
                     if not switch_to_add in slice_switch_list:
                         print("ERROR, the specified switch doesn't belong to the slice. \n")
-                    elif switch_to_add in path_between_hosts:
+                    elif switch_to_add in path_between_switches or switch_to_add == int(edge_switches[j]):
                         print("ERROR, the specified switch already belongs to the path. \n")
-                    elif len(path_between_hosts) == 0 and not str(topology["hosts_to_switches_map"][str(slice_hosts_list[i])]) == str(switch_to_add):
-                        print(f"ERROR, the switch {switch_to_add} is not attached to h{slice_hosts_list[i]}. \n")
-                    elif len(path_between_hosts) > 0 and not str(switch_to_add) in topology["links_among_switches"][str(path_between_hosts[-1])]:
-                        print(f"ERROR, the switches {switch_to_add} and {path_between_hosts[-1]} doesn't have a link between them in the topology. \n")
-                    elif len(path_between_hosts) > 0 and available_link_capacity[str(switch_to_add)][str(path_between_hosts[-1])] <= 0:
-                        print(f"ERROR, the switches {switch_to_add} and {path_between_hosts[-1]} doesn't have an available capacity for the current slice. \n")
+                    elif not str(switch_to_add) in topology["links_among_switches"][str(path_between_switches[-1])]:
+                        print(f"ERROR, the switches {switch_to_add} and {path_between_switches[-1]} doesn't have a link between them in the topology. \n")
+                    elif available_link_capacity[str(switch_to_add)][str(path_between_switches[-1])] <= 0:
+                        print(f"ERROR, the switches {switch_to_add} and {path_between_switches[-1]} doesn't have an available capacity for the current slice. \n")
                     else:
-                        path_between_hosts.append(switch_to_add)
-                elif len(path_between_hosts) < 1:
-                    print("ERROR, at least a switch must belong to the path. \n")
-                elif not str(topology["hosts_to_switches_map"][str(slice_hosts_list[j])]) == str(path_between_hosts[-1]):
-                    print(f"ERROR, the switch {path_between_hosts[-1]} is not attached to h{slice_hosts_list[j]}. \n")
-                else:
-                    print("SUCCESS \n\n")
-                    break
-            
-            if not slice_hosts_list[i] in path_between_hosts_dict:
-                path_between_hosts_dict[slice_hosts_list[i]] = {}
-            
-            if not slice_hosts_list[j] in path_between_hosts_dict:
-                path_between_hosts_dict[slice_hosts_list[j]] = {}
+                        path_between_switches.append(switch_to_add)
 
-            path_between_hosts_dict[slice_hosts_list[i]][slice_hosts_list[j]] = path_between_hosts
-            path_between_hosts_dict[slice_hosts_list[j]][slice_hosts_list[i]] = path_between_hosts[::-1]
+                else:
+                    #add last switch and exit
+                    if not str(edge_switches[j]) in topology["links_among_switches"][str(path_between_switches[-1])]:
+                        print(f"ERROR, the switch {edge_switches[j]} (the edge one) and {path_between_switches[-1]} doesn't have a link between them in the topology. Add other switches in order to complete the path.\n")
+                    else:
+                        path_between_switches.append(int(edge_switches[j]))
+                        print("SUCCESS \n\n")
+                        break
+            
+            for h1_index in range(len(slice_hosts_list)):
+                for h2_index in range(len(slice_hosts_list)):
+                    h1 = str(slice_hosts_list[h1_index])
+                    h2 = str(slice_hosts_list[h2_index])
+
+                    if not h1 == h2:
+                        if not h1 in path_between_hosts_dict:
+                            path_between_hosts_dict[h1] = {}
+                        
+                        if not h2 in path_between_hosts_dict:
+                            path_between_hosts_dict[h2] = {}
+
+                        if edge_switches[i] == topology["hosts_to_switches_map"][h1] and edge_switches[j] == topology["hosts_to_switches_map"][h2]:
+                            path_between_hosts_dict[h1][h2] = path_between_switches
+                            path_between_hosts_dict[h2][h1] = path_between_switches[::-1]
+
+    #add links between hosts sharing the same first switch
+    for h1_index in range(len(slice_hosts_list)):
+        for h2_index in range(len(slice_hosts_list)):
+            h1 = str(slice_hosts_list[h1_index])
+            h2 = str(slice_hosts_list[h2_index])
+
+            if not h1 == h2:
+                if not h1 in path_between_hosts_dict:
+                    path_between_hosts_dict[h1] = {}
+                
+                if not h2 in path_between_hosts_dict:
+                    path_between_hosts_dict[h2] = {}
+
+                if topology["hosts_to_switches_map"][h1] == topology["hosts_to_switches_map"][h2]:
+                    path_between_hosts_dict[h1][h2] = [topology["hosts_to_switches_map"][h1]]
+                    path_between_hosts_dict[h2][h1] = [topology["hosts_to_switches_map"][h1]]
 
     link_capacity_dict = {}
     for host1 in path_between_hosts_dict.keys():
