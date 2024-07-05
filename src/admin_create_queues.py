@@ -66,7 +66,7 @@ def is_link_used(path_between_hosts, adjacent_links):
                     return True
     return False
 
-if __name__ == "__main__":
+def create_queues_script():
     topology = get_topology() 
     n_switches = topology["number_of_switches"]
     mac_to_port = topology["hosts_macs_to_switches_ports"]
@@ -133,14 +133,15 @@ if __name__ == "__main__":
                 if not str(host_1) == str(host_2):
                     for switch in slice_details[_slice]["switches"]:
                         rule = ""
-                        if not slice_to_port[str(_slice)] == "DEFAULT":
-                            # pass
-                            rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
-                            rule = rule + "\n"
-                            rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
-                        else:
-                            rule = "sudo ovs-ofctl add-flow s"+str(switch)+" ip,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
-                        rules_set.append(rule)
+                        if str(_slice) in slice_to_port:
+                            if not slice_to_port[str(_slice)] == "DEFAULT":
+                                # pass
+                                rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
+                                rule = rule + "\n"
+                                rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
+                            else:
+                                rule = "sudo ovs-ofctl add-flow s"+str(switch)+" ip,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
+                            rules_set.append(rule)
             rules_set.append("\n")
         rules_set.append("\n")
 

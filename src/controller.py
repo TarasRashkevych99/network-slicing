@@ -141,7 +141,7 @@ class TrafficSlicing(app_manager.RyuApp):
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             match = datapath.ofproto_parser.OFPMatch(eth_dst=dst)
-            self.add_flow(datapath, 1, match, actions)
+            # self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
 
         elif (pkt.get_protocol(udp.udp)):
@@ -160,6 +160,10 @@ class TrafficSlicing(app_manager.RyuApp):
             src_host_id = str(convert_mac_to_host_id(src))
             dest_host_id = str(convert_mac_to_host_id(dst))
 
+            if not src_host_id in slice_details[slice_number]["path_between_host"] or not dest_host_id in slice_details[slice_number]["path_between_host"][src_host_id]:
+                print("ERROR, the slice used doesn't involve the sender or the receiver")
+                return
+
             out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
            
             if out_port == -1:
@@ -177,7 +181,7 @@ class TrafficSlicing(app_manager.RyuApp):
             )
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(datapath, 1, match, actions)
+            # self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
 
         elif pkt.get_protocol(tcp.tcp):
@@ -196,6 +200,10 @@ class TrafficSlicing(app_manager.RyuApp):
             src_host_id = str(convert_mac_to_host_id(src))
             dest_host_id = str(convert_mac_to_host_id(dst))
 
+            if not src_host_id in slice_details[slice_number]["path_between_host"] or not dest_host_id in slice_details[slice_number]["path_between_host"][src_host_id]:
+                print("ERROR, the slice used doesn't involve the sender or the receiver")
+                return
+
             out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
 
             if out_port == -1:
@@ -213,7 +221,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 tcp_dst=pkt.get_protocol(tcp.tcp).dst_port,
             )
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(datapath, 1, match, actions)
+            # self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
 
         elif pkt.get_protocol(icmp.icmp):
@@ -229,6 +237,10 @@ class TrafficSlicing(app_manager.RyuApp):
 
             src_host_id = str(convert_mac_to_host_id(src))
             dest_host_id = str(convert_mac_to_host_id(dst))
+
+            if not src_host_id in slice_details[slice_number]["path_between_host"] or not dest_host_id in slice_details[slice_number]["path_between_host"][src_host_id]:
+                print("ERROR, the slice used doesn't involve the sender or the receiver")
+                return
 
             out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
 
@@ -246,7 +258,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 ip_proto=0x01,  # icmp
             )
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(datapath, 1, match, actions)
+            # self.add_flow(datapath, 1, match, actions)
             self._send_package(msg, datapath, in_port, actions)
         else:
             print("ERROR, I'm stucked \n")

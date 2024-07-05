@@ -1,6 +1,8 @@
 import json
 from sys import exit
 import os
+from admin_create_queues import create_queues_script
+import subprocess
 
 def get_positive_integer(message, allow_zero = False):
     if allow_zero:
@@ -231,6 +233,12 @@ def assign_slice(slice_counter, port_to_slice, slice_to_port):
             "To which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
         )
 
+    if port in port_to_slice:
+        del slice_to_port[port_to_slice[port]]
+
+    if n_slice in slice_to_port:
+        del port_to_slice[slice_to_port[n_slice]]
+
     port_to_slice[port] = n_slice
     slice_to_port[n_slice] = port
 
@@ -263,6 +271,9 @@ def execute_operation(operation, slice_details, port_to_slice, slice_to_port, sl
 
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
+
+    create_queues_script()
+    subprocess.run(["sh queues.sh"], shell=True)
 
     return slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active
 
