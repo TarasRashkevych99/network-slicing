@@ -89,11 +89,12 @@ class TrafficSlicing(app_manager.RyuApp):
 
         dpid = str(datapath.id)
 
-        if str(dst).startswith("33:33"):
+        if str(dst).startswith("33:33"): #ignore packages not sent by us
             return
 
         print("DPID "+dpid)
         print("IN_PORT "+str(in_port))
+        print("SRC "+str(src))
         print("DEST "+str(dst))
 
         try:
@@ -116,13 +117,12 @@ class TrafficSlicing(app_manager.RyuApp):
             elif (pkt.get_protocol(tcp.tcp)):
                 if str(pkt.get_protocol(tcp.tcp).dst_port) in port_to_slice.keys():
                     slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
-            elif (pkt.get_protocol(icmp.icmp)):
-                slice_number = str(port_to_slice["ICMP"])
 
             if slice_number == 0:
                 if "DEFAULT" in port_to_slice.keys():
                     slice_number = str(port_to_slice["DEFAULT"])
                 else:
+                    print("ERROR, the controller will return because it's not present neither a slice for the port used, neither a default slice to use")
                     return
 
             if not active_slices[str(slice_number)] == True:
@@ -150,14 +150,18 @@ class TrafficSlicing(app_manager.RyuApp):
             elif "DEFAULT" in port_to_slice.keys():
                 slice_number = str(port_to_slice["DEFAULT"])
             else:
-                print("It is neither specified the slice to use for port "+str(pkt.get_protocol(udp.udp).dst_port)+" nor the one to use as default")
+                print("ERROR, It is neither specified the slice to use for port "+str(pkt.get_protocol(udp.udp).dst_port)+" nor the one to use as default")
                 return
 
             if not active_slices[str(slice_number)] == True:
                 print("ERROR, the slice to use is currently disabled")
                 return
 
-            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            src_host_id = str(convert_mac_to_host_id(src))
+            dest_host_id = str(convert_mac_to_host_id(dst))
+
+            out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
+           
             if out_port == -1:
                 return
 
@@ -182,14 +186,18 @@ class TrafficSlicing(app_manager.RyuApp):
             elif "DEFAULT" in port_to_slice.keys():
                 slice_number = str(port_to_slice["DEFAULT"])
             else:
-                print("It is neither specified the slice to use for port "+str(pkt.get_protocol(tcp.tcp).dst_port)+" nor the one to use as default")
+                print("ERROR, It is neither specified the slice to use for port "+str(pkt.get_protocol(tcp.tcp).dst_port)+" nor the one to use as default")
                 return
 
             if not active_slices[str(slice_number)] == True:
                 print("ERROR, the slice to use is currently disabled")
                 return
 
-            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            src_host_id = str(convert_mac_to_host_id(src))
+            dest_host_id = str(convert_mac_to_host_id(dst))
+
+            out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
+
             if out_port == -1:
                 return
 
@@ -209,17 +217,21 @@ class TrafficSlicing(app_manager.RyuApp):
             self._send_package(msg, datapath, in_port, actions)
 
         elif pkt.get_protocol(icmp.icmp):
-            if "ICMP" in port_to_slice.keys():
-                slice_number = str(port_to_slice["ICMP"])
+            if "DEFAULT" in port_to_slice.keys():
+                slice_number = str(port_to_slice["DEFAULT"])
             else:
-                print("It is not specified the slice to use for ICMP")
+                print("It is not specified the slice to use for ICMP/DEFAULT packages")
                 return
 
             if not active_slices[str(slice_number)] == True:
                 print("ERROR, the slice to use is currently disabled")
                 return
 
-            out_port = get_output_port(dpid,str(prev_switch),slice_details[slice_number]["switches"],edges_to_ports)
+            src_host_id = str(convert_mac_to_host_id(src))
+            dest_host_id = str(convert_mac_to_host_id(dst))
+
+            out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
+
             if out_port == -1:
                 return
 
@@ -239,28 +251,18 @@ class TrafficSlicing(app_manager.RyuApp):
         else:
             print("ERROR, I'm stucked \n")
 
-def get_output_port(dpid,prev_switch,slice_switches,edges_to_ports):
-    if int(dpid) in slice_switches: 
-        dpid_index = slice_switches.index(int(dpid))
-    else: 
+def get_output_port(dpid, ordered_path, edges_to_ports):
+    try:
+        new_index = ordered_path.index(int(dpid)) + 1
+        next_switch = str(ordered_path[new_index])
+
+        port_to_use = edges_to_ports[dpid][next_switch][0]
+        
+        return port_to_use
+
+    except:
         return -1
 
-    dpid_index = slice_switches.index(int(dpid))
-
-    neighbor_switch_indexes = [dpid_index - 1, dpid_index + 1]
-
-    if neighbor_switch_indexes[0] == -1:
-        next_switch = slice_switches[neighbor_switch_indexes[1]]
-    elif neighbor_switch_indexes[1] == len(slice_switches):
-        next_switch = slice_switches[neighbor_switch_indexes[0]]
-    elif str(slice_switches[neighbor_switch_indexes[0]]) == str(prev_switch):
-        next_switch = slice_switches[neighbor_switch_indexes[1]]
-    else:
-        next_switch = slice_switches[neighbor_switch_indexes[0]]
-    
-    out_port = edges_to_ports[dpid][str(next_switch)][0]
-
-    return out_port
 
 
 def get_slices():

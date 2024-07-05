@@ -33,7 +33,7 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
     topology = get_topology() 
 
     slice_hosts_list = []
-    slice_switch_path_list = []
+    slice_switch_list = []
 
     while True:
         host_to_add = get_positive_integer(f"Submit a host to insert in the slice {slice_counter} (type '0' when all the hosts are added)? ", True)
@@ -50,47 +50,142 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
             break
 
     while True:
-        switch_to_add = get_positive_integer(f"Which is the next switch belonging to the path of slice {slice_counter} (type '0' when all the switches are added)? ", True)
+        switch_to_add = get_positive_integer(f"Submit a switch to insert in the slice {slice_counter} (type '0' when all the switches are added)? ", True)
         if switch_to_add != 0:
             if switch_to_add > topology["number_of_switches"]:
                 print("ERROR, the specified switch doesn't exists. \n")
-            elif switch_to_add in slice_switch_path_list:
-                print("ERROR, the specified switch already belongs to the path. \n")
-            elif len(slice_switch_path_list) > 0 and not str(switch_to_add) in topology["links_among_switches"][str(slice_switch_path_list[-1])]:
-                print(f"ERROR, the switches {switch_to_add} and {slice_switch_path_list[-1]} doesn't have a link between them in the topology. \n")
-            elif len(slice_switch_path_list) > 0 and available_link_capacity[str(switch_to_add)][str(slice_switch_path_list[-1])] <= 0:
-                print(f"ERROR, the switches {switch_to_add} and {slice_switch_path_list[-1]} doesn't have an available capacity for the current slice. \n")
+            elif switch_to_add in slice_switch_list:
+                print("ERROR, the specified switch already belongs to the slice. \n")
             else:
-                slice_switch_path_list.append(switch_to_add)
-        elif len(slice_switch_path_list) < 1:
+                slice_switch_list.append(switch_to_add)
+        elif len(slice_switch_list) < 1:
             print("ERROR, at least a switch must belong to the slice. \n")
         else:
             break
 
-    queue_capacity = []
+    edge_switches = []
+    for i in range(len(slice_hosts_list)):
+        switch_to_consider = topology["hosts_to_switches_map"][str(slice_hosts_list[i])]
 
-    for i in range(len(slice_switch_path_list) - 1):
-        switch_1 = str(slice_switch_path_list[i])
-        switch_2 = str(slice_switch_path_list[i+1])
-        available_capacity = available_link_capacity[switch_1][switch_2]
+        if not switch_to_consider in edge_switches:
+            edge_switches.append(switch_to_consider)
+    
+    edge_switches.sort()
 
-        while True:
-            proposed_link_capacity = get_positive_integer(f"Specify the capacity of the virtual queue between s{switch_1} and s{switch_2}: ")
+    path_between_hosts_dict = {}
+    for i in range(len(edge_switches)):
+        for j in range(i+1,len(edge_switches)):
+            path_between_switches = [int(edge_switches[i])]
 
-            if proposed_link_capacity <= available_capacity:
-                new_available_capacity = available_capacity - proposed_link_capacity
-                available_link_capacity[switch_1][switch_2] = new_available_capacity
-                available_link_capacity[switch_2][switch_1] = new_available_capacity
+            while True:
+                switch_to_add = get_positive_integer(f"Which is the next switch belonging to the path of slice {slice_counter} between s{edge_switches[i]} and s{edge_switches[j]}? (type '0' when all the switches are added) ", True)
+                if switch_to_add != 0:
+                    if not switch_to_add in slice_switch_list:
+                        print("ERROR, the specified switch doesn't belong to the slice. \n")
+                    elif switch_to_add in path_between_switches or switch_to_add == int(edge_switches[j]):
+                        print("ERROR, the specified switch already belongs to the path. \n")
+                    elif not str(switch_to_add) in topology["links_among_switches"][str(path_between_switches[-1])]:
+                        print(f"ERROR, the switches {switch_to_add} and {path_between_switches[-1]} doesn't have a link between them in the topology. \n")
+                    elif available_link_capacity[str(switch_to_add)][str(path_between_switches[-1])] <= 0:
+                        print(f"ERROR, the switches {switch_to_add} and {path_between_switches[-1]} doesn't have an available capacity for the current slice. \n")
+                    else:
+                        path_between_switches.append(switch_to_add)
 
-                queue_capacity.append(proposed_link_capacity)
-                break
-            else:
-                print(f"ERROR, the available capacity for the link is {available_capacity}. \n")
+                else:
+                    #add last switch and exit
+                    if not str(edge_switches[j]) in topology["links_among_switches"][str(path_between_switches[-1])]:
+                        print(f"ERROR, the switch {edge_switches[j]} (the edge one) and {path_between_switches[-1]} doesn't have a link between them in the topology. Add other switches in order to complete the path.\n")
+                    else:
+                        path_between_switches.append(int(edge_switches[j]))
+                        print("SUCCESS \n\n")
+                        break
+            
+            for h1_index in range(len(slice_hosts_list)):
+                for h2_index in range(len(slice_hosts_list)):
+                    h1 = str(slice_hosts_list[h1_index])
+                    h2 = str(slice_hosts_list[h2_index])
+
+                    if not h1 == h2:
+                        if not h1 in path_between_hosts_dict:
+                            path_between_hosts_dict[h1] = {}
+                        
+                        if not h2 in path_between_hosts_dict:
+                            path_between_hosts_dict[h2] = {}
+
+                        if edge_switches[i] == topology["hosts_to_switches_map"][h1] and edge_switches[j] == topology["hosts_to_switches_map"][h2]:
+                            path_between_hosts_dict[h1][h2] = path_between_switches
+                            path_between_hosts_dict[h2][h1] = path_between_switches[::-1]
+
+    #add links between hosts sharing the same first switch
+    for h1_index in range(len(slice_hosts_list)):
+        for h2_index in range(len(slice_hosts_list)):
+            h1 = str(slice_hosts_list[h1_index])
+            h2 = str(slice_hosts_list[h2_index])
+
+            if not h1 == h2:
+                if not h1 in path_between_hosts_dict:
+                    path_between_hosts_dict[h1] = {}
+                
+                if not h2 in path_between_hosts_dict:
+                    path_between_hosts_dict[h2] = {}
+
+                if topology["hosts_to_switches_map"][h1] == topology["hosts_to_switches_map"][h2]:
+                    path_between_hosts_dict[h1][h2] = [topology["hosts_to_switches_map"][h1]]
+                    path_between_hosts_dict[h2][h1] = [topology["hosts_to_switches_map"][h1]]
+
+    link_capacity = -1
+    while True:
+        link_capacity = get_positive_integer(f"Which is the capacity to assign to the links of the slice? ", False)
+
+        is_capacity_valid = True
+
+        for host1 in path_between_hosts_dict.keys():
+            for host2 in path_between_hosts_dict[host1].keys():
+                if len(path_between_hosts_dict[host1][host2]) >= 2:
+                    for i in range(len(path_between_hosts_dict[host1][host2]) - 1):
+                        switch1 = str(path_between_hosts_dict[host1][host2][i])
+                        switch2 = str(path_between_hosts_dict[host1][host2][i + 1])
+                        
+                        available_capacity = available_link_capacity[switch1][switch2]
+
+                        if link_capacity > available_capacity and is_capacity_valid:
+                            print("ERROR, the specified capacity is not available (e.g. between s"+switch1+" and s"+switch2+")")
+                            is_capacity_valid = False
+
+        if is_capacity_valid:
+            break # all the links have at least the specified capacity                            
+
+
+
+    # link_capacity_dict = {}
+    # for host1 in path_between_hosts_dict.keys():
+    #     for host2 in path_between_hosts_dict[host1].keys():
+    #         if len(path_between_hosts_dict[host1][host2]) >= 2:
+    #             for i in range(len(path_between_hosts_dict[host1][host2]) - 1):
+    #                 switch1 = str(path_between_hosts_dict[host1][host2][i])
+    #                 switch2 = str(path_between_hosts_dict[host1][host2][i + 1])
+
+    #                 if not switch1 in link_capacity_dict.keys(): # check if dict for switch1 exists
+    #                     link_capacity_dict[switch1] = {}
+
+    #                 if not switch2 in link_capacity_dict[switch1].keys(): # check if dict for switch1 switch2 link exists
+    #                     new_available_capacity = available_capacity - link_capacity
+    #                     available_link_capacity[switch1][switch2] = new_available_capacity
+    #                     available_link_capacity[switch2][switch1] = new_available_capacity
+
+    #                     link_capacity_dict[switch1][switch2] = link_capacity
+
+    #                 if not switch2 in link_capacity_dict.keys(): # check if dict for switch2 exists
+    #                     link_capacity_dict[switch2] = {}
+
+    #                 if not switch2 in link_capacity_dict[switch2].keys() and not link_capacity == -1: # check if dict for switch2 switch1 link exists
+    #                     link_capacity_dict[switch2][switch1] = link_capacity
 
     slice_details[str(slice_counter)] = {
         "hosts" : slice_hosts_list,
-        "switches" : slice_switch_path_list,
-        "capacity" : queue_capacity
+        "switches" : slice_switch_list,
+        "path_between_host" : path_between_hosts_dict,
+        "link_capacity" : link_capacity
     }
 
     print(f"\nSUCCESS, the slice added can be identified by number {slice_counter}\n")
@@ -122,16 +217,14 @@ def deactivate_slice(is_slice_active, slice_counter):
 
     return is_slice_active
 
-def assign_slice(slice_counter, port_to_slice):
+def assign_slice(slice_counter, port_to_slice, slice_to_port):
     n_slice = int(input("Which slice do you want to assign: "))
 
     if n_slice >= slice_counter:
         print("Error, the slice specified doesn't exist \n")
         return port_to_slice
 
-    if input("Do you want to use this slice for ICMP (y/N)? ").lower() == "y":
-        port = "ICMP"
-    elif input("Do you want to use this slice for the ACK responses or as default slice (y/N)? ").lower() == "y":
+    if input("Do you want to use this slice for ICMP, for ACK responses or as default slice (y/N)? ").lower() == "y":
         port = "DEFAULT"
     else:
         port = get_positive_integer(
@@ -139,11 +232,12 @@ def assign_slice(slice_counter, port_to_slice):
         )
 
     port_to_slice[port] = n_slice
+    slice_to_port[n_slice] = port
 
-    return port_to_slice
+    return port_to_slice, slice_to_port
 
 
-def execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
+def execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
     if operation == 1:
         slice_details, available_link_capacity = add_slice(slice_details, slice_counter, available_link_capacity)
         is_slice_active[str(slice_counter)] = True
@@ -153,13 +247,14 @@ def execute_operation(operation, slice_details, port_to_slice, slice_counter, is
     elif operation == 3:
         is_slice_active = deactivate_slice(is_slice_active, slice_counter)
     elif operation == 4:
-        port_to_slice = assign_slice(slice_counter, port_to_slice)
+        port_to_slice, slice_to_port = assign_slice(slice_counter, port_to_slice, slice_to_port)
     elif operation == 5:
         exit(0)
 
     slices_options = (
         {
             "port_to_slice": port_to_slice,
+            "slice_to_port": slice_to_port,
             "slice_details": slice_details,
             "active_slices": is_slice_active,
             "available_link_capacity": available_link_capacity
@@ -169,7 +264,7 @@ def execute_operation(operation, slice_details, port_to_slice, slice_counter, is
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
 
-    return slice_counter, slice_details, port_to_slice, is_slice_active
+    return slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active
 
 if __name__ == "__main__":
     slices_json_path = "slices.json"
@@ -193,6 +288,7 @@ if __name__ == "__main__":
         slice_counter = 1
         slice_details = {}
         port_to_slice = {}
+        slice_to_port = {}
         is_slice_active = {}
 
         topology = get_topology()
@@ -207,13 +303,14 @@ if __name__ == "__main__":
 
                 available_link_capacity[switch1][switch2] = link_full_capacity
 
-        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
     else:
         with open(slices_json_path, "r", encoding="utf-8") as f:
             slices_options = json.load(f)[0]
 
         slice_details = slices_options["slice_details"]
         port_to_slice = slices_options["port_to_slice"]
+        slice_to_port = slices_options["slice_to_port"]
         is_slice_active = slices_options["active_slices"]
         available_link_capacity = slices_options["available_link_capacity"]
 
@@ -235,4 +332,4 @@ if __name__ == "__main__":
             else:
                 break
 
-        slice_counter, slice_details, port_to_slice, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
