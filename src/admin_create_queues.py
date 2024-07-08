@@ -173,7 +173,7 @@ def create_queues_script():
 
     f = open("queues.sh", "w")
     f.write('#!/bin/sh \n\n'+
-        '\n'.join(dump_rules)+'\n'+
+        '\n'.join(dump_rules)+'\n\n'+
         '\n'.join(queues_definition)+'\n'+
         '\n'.join(rules_set))
     f.close()

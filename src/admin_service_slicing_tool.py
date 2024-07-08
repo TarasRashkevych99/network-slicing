@@ -3,6 +3,7 @@ from sys import exit
 import os
 from admin_create_queues import create_queues_script
 import subprocess
+import copy
 
 def get_positive_integer(message, allow_zero = False):
     if allow_zero:
@@ -154,7 +155,18 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
                             print("ERROR, the specified capacity is not available (e.g. between s"+switch1+" and s"+switch2+")")
                             is_capacity_valid = False
 
+        available_link_capacity_updated = copy.deepcopy(available_link_capacity)
         if is_capacity_valid:
+            for host1 in path_between_hosts_dict.keys():
+                for host2 in path_between_hosts_dict[host1].keys():
+                    if len(path_between_hosts_dict[host1][host2]) >= 2:
+                        for i in range(len(path_between_hosts_dict[host1][host2]) - 1):
+                            switch1 = str(path_between_hosts_dict[host1][host2][i])
+                            switch2 = str(path_between_hosts_dict[host1][host2][i + 1])
+                            
+                            if available_link_capacity_updated[switch1][switch2] == available_link_capacity[switch1][switch2]: # so, if it wasn't already updated
+                                available_link_capacity_updated[switch1][switch2] = available_link_capacity[switch1][switch2] - link_capacity
+
             break # all the links have at least the specified capacity                            
 
 
@@ -187,11 +199,11 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
         "hosts" : slice_hosts_list,
         "switches" : slice_switch_list,
         "path_between_host" : path_between_hosts_dict,
-        "link_capacity" : link_capacity
+        "link_capacity" : link_capacity,
     }
 
     print(f"\nSUCCESS, the slice added can be identified by number {slice_counter}\n")
-    return slice_details, available_link_capacity
+    return slice_details, available_link_capacity_updated
 
 
 def activate_slice(is_slice_active, slice_counter):
@@ -224,7 +236,7 @@ def assign_slice(slice_counter, port_to_slice, slice_to_port):
 
     if n_slice >= slice_counter:
         print("Error, the slice specified doesn't exist \n")
-        return port_to_slice
+        return port_to_slice, slice_to_port
 
     if input("Do you want to use this slice for ICMP, for ACK responses or as default slice (y/N)? ").lower() == "y":
         port = "DEFAULT"
@@ -233,16 +245,44 @@ def assign_slice(slice_counter, port_to_slice, slice_to_port):
             "To which application level port assign the slice (if the port is already assigned, the old slice will be deactivated): "
         )
 
-    if port in port_to_slice:
-        del slice_to_port[port_to_slice[port]]
+    if str(port) in port_to_slice:
+        del slice_to_port[str(port_to_slice[str(port)])]
 
-    if n_slice in slice_to_port:
-        del port_to_slice[slice_to_port[n_slice]]
+    if str(n_slice) in slice_to_port:
+        del port_to_slice[str(slice_to_port[str(n_slice)])]
 
-    port_to_slice[port] = n_slice
-    slice_to_port[n_slice] = port
+    port_to_slice[str(port)] = str(n_slice)
+    slice_to_port[str(n_slice)] = str(port)
 
     return port_to_slice, slice_to_port
+
+def print_debug(slice_details, is_slice_active, available_link_capacity, slice_to_port):
+    print("\n--- AVAILABLE LINK CAPACITY TO BE ASSIGNED ---")
+
+    for switch1 in available_link_capacity:
+        for switch2 in available_link_capacity[switch1]:
+            if switch1 < switch2:
+                print("s"+str(switch1)+" <--> s"+str(switch2)+" : "+str(available_link_capacity[switch1][switch2]))
+    print(slice_to_port)
+
+    for slice_ in slice_details:
+        if slice_ in slice_to_port:
+            port = slice_to_port[slice_]
+        else:
+            port = "False"
+
+        print("\n--- SLICE "+slice_+" ---")
+        print("HOSTS: ")
+        print(*slice_details[slice_]["hosts"])
+        print("SWITCHES: ")
+        print(*slice_details[slice_]["switches"])
+        print("ACTIVATED: "+str(is_slice_active[slice_]))
+        print("ASSIGNED: "+str(port))
+        print("CAPACITY: "+str(slice_details[slice_]["link_capacity"]))
+
+    print("\n")
+
+
 
 
 def execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
@@ -257,6 +297,11 @@ def execute_operation(operation, slice_details, port_to_slice, slice_to_port, sl
     elif operation == 4:
         port_to_slice, slice_to_port = assign_slice(slice_counter, port_to_slice, slice_to_port)
     elif operation == 5:
+        print_debug(slice_details, is_slice_active, available_link_capacity, slice_to_port)
+    elif operation == 6:
+        for switch in range(1,get_topology()["number_of_switches"]+1):
+            rule = "sudo ovs-ofctl del-flows s"+str(switch)
+            subprocess.run([rule], shell=True)
         exit(0)
 
     slices_options = (
@@ -272,10 +317,11 @@ def execute_operation(operation, slice_details, port_to_slice, slice_to_port, sl
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
 
-    create_queues_script()
-    subprocess.run(["sh queues.sh"], shell=True)
+    if not operation == 5:
+        create_queues_script()
+        subprocess.run(["sh queues.sh"], shell=True)
 
-    return slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active
+    return slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active, available_link_capacity
 
 if __name__ == "__main__":
     slices_json_path = "slices.json"
@@ -314,7 +360,20 @@ if __name__ == "__main__":
 
                 available_link_capacity[switch1][switch2] = link_full_capacity
 
-        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(1, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slices_options = (
+            {
+                "port_to_slice": port_to_slice,
+                "slice_to_port": slice_to_port,
+                "slice_details": slice_details,
+                "active_slices": is_slice_active,
+                "available_link_capacity": available_link_capacity
+            },
+        )
+
+        with open(slices_json_path, "w", encoding="utf-8") as f:
+            json.dump(slices_options, f, ensure_ascii=False, indent=4)
+
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active, available_link_capacity = execute_operation(1, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
     else:
         with open(slices_json_path, "r", encoding="utf-8") as f:
             slices_options = json.load(f)[0]
@@ -325,8 +384,13 @@ if __name__ == "__main__":
         is_slice_active = slices_options["active_slices"]
         available_link_capacity = slices_options["available_link_capacity"]
 
-        slice_counter = int(max(is_slice_active, key=int)) + 1
+        if is_slice_active: # if it's not empty, so it exists at least a slice
+            slice_counter = int(max(is_slice_active, key=int)) + 1
+        else:
+            slice_counter = 0
 
+        create_queues_script()
+        subprocess.run(["sh queues.sh"], shell=True)
 
     while True:
         while True:
@@ -335,12 +399,13 @@ if __name__ == "__main__":
                 + "'2' to activate an existing slice \n"
                 + "'3' to deactivate a slice \n"
                 + "'4' to assign a slice \n"
-                + "'5' to exit \n"
+                + "'5' to have printed the currently defined slices \n"
+                + "'6' to exit \n"
             )
 
-            if operation > 5:
-                print("Error, the value written must to be between '1' and '5'")
+            if operation > 6:
+                print("Error, the value written must to be between '1' and '6'")
             else:
                 break
 
-        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active = execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
+        slice_counter, slice_details, port_to_slice, slice_to_port, is_slice_active, available_link_capacity = execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity)
