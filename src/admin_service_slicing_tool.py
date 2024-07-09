@@ -257,13 +257,26 @@ def assign_slice(slice_counter, port_to_slice, slice_to_port):
     return port_to_slice, slice_to_port
 
 def print_debug(slice_details, is_slice_active, available_link_capacity, slice_to_port):
+    full_link_capacity = {}
+    topology = get_topology()
+
+    for switch1 in topology["links_among_switches"]:
+        full_link_capacity[switch1] = {}
+
+        for switch2 in topology["links_among_switches"][switch1]:
+            link_type = topology["links_among_switches"][switch1][switch2]
+            link_full_capacity = topology["links"][link_type]
+
+            full_link_capacity[switch1][switch2] = link_full_capacity
+
     print("\n--- AVAILABLE LINK CAPACITY TO BE ASSIGNED ---")
 
     for switch1 in available_link_capacity:
         for switch2 in available_link_capacity[switch1]:
             if switch1 < switch2:
-                print("s"+str(switch1)+" <--> s"+str(switch2)+" : "+str(available_link_capacity[switch1][switch2]))
-    print(slice_to_port)
+                available_capacity = available_link_capacity[switch1][switch2]
+                full_capacity = full_link_capacity[switch1][switch2]
+                print("s"+str(switch1)+" <--> s"+str(switch2)+" : "+str(available_capacity)+" Mbps, available "+str(round((available_capacity/full_capacity)*100,2))+"%")
 
     for slice_ in slice_details:
         if slice_ in slice_to_port:
@@ -278,11 +291,26 @@ def print_debug(slice_details, is_slice_active, available_link_capacity, slice_t
         print(*slice_details[slice_]["switches"])
         print("ACTIVATED: "+str(is_slice_active[slice_]))
         print("ASSIGNED: "+str(port))
-        print("CAPACITY: "+str(slice_details[slice_]["link_capacity"]))
+        print("LINK CAPACITY: "+str(slice_details[slice_]["link_capacity"])+" Mbps")
+        print("LINKS USAGE BY THE SLICE: ")
 
+        link_printed = {}
+        for host1 in slice_details[slice_]["path_between_host"].keys():
+            for host2 in slice_details[slice_]["path_between_host"][host1].keys():
+                path_between_host = slice_details[slice_]["path_between_host"][host1][host2]
+                if len(path_between_host) >= 2 and int(host1) < int(host2):
+                    for i in range(len(path_between_host) - 1):
+                        switch1 = str(path_between_host[i])
+                        switch2 = str(path_between_host[i + 1])
+                        
+                        if switch1 < switch2:
+                            if not switch1 in link_printed:
+                                link_printed[switch1] = {}
+                            
+                            if not switch2 in link_printed[switch1]:
+                                link_printed[switch1][switch2] = True
+                                print("s"+str(switch1)+" <--> s"+str(switch2)+": "+str(round((slice_details[slice_]["link_capacity"]/full_link_capacity[switch1][switch2])*100,2))+"%")
     print("\n")
-
-
 
 
 def execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
