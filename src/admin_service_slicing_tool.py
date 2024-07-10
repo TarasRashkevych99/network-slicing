@@ -33,6 +33,22 @@ def get_topology():
         exit()
 
 def add_slice(slice_details, slice_counter, available_link_capacity): 
+    if slice_counter == 1:
+        print("This is the first slice to be defined and will be used for ICMP, acknowledgments and not matched ports. Make sure to insert all the hosts and a coherent set of switches")
+        port = "DEFAULT"
+    else:
+        while True:
+            port = get_positive_integer(
+                "To which application level port assign the slice: "
+            )
+            if str(port) in port_to_slice:
+                print("ERROR, the current port is already reserved for slice "+port_to_slice[str(port)])
+            else:
+                break
+    
+    port_to_slice[str(port)] = str(slice_counter)
+    slice_to_port[str(slice_counter)] = str(port)
+
     topology = get_topology() 
 
     slice_hosts_list = []
@@ -167,33 +183,7 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
                             if available_link_capacity_updated[switch1][switch2] == available_link_capacity[switch1][switch2]: # so, if it wasn't already updated
                                 available_link_capacity_updated[switch1][switch2] = available_link_capacity[switch1][switch2] - link_capacity
 
-            break # all the links have at least the specified capacity                            
-
-
-
-    # link_capacity_dict = {}
-    # for host1 in path_between_hosts_dict.keys():
-    #     for host2 in path_between_hosts_dict[host1].keys():
-    #         if len(path_between_hosts_dict[host1][host2]) >= 2:
-    #             for i in range(len(path_between_hosts_dict[host1][host2]) - 1):
-    #                 switch1 = str(path_between_hosts_dict[host1][host2][i])
-    #                 switch2 = str(path_between_hosts_dict[host1][host2][i + 1])
-
-    #                 if not switch1 in link_capacity_dict.keys(): # check if dict for switch1 exists
-    #                     link_capacity_dict[switch1] = {}
-
-    #                 if not switch2 in link_capacity_dict[switch1].keys(): # check if dict for switch1 switch2 link exists
-    #                     new_available_capacity = available_capacity - link_capacity
-    #                     available_link_capacity[switch1][switch2] = new_available_capacity
-    #                     available_link_capacity[switch2][switch1] = new_available_capacity
-
-    #                     link_capacity_dict[switch1][switch2] = link_capacity
-
-    #                 if not switch2 in link_capacity_dict.keys(): # check if dict for switch2 exists
-    #                     link_capacity_dict[switch2] = {}
-
-    #                 if not switch2 in link_capacity_dict[switch2].keys() and not link_capacity == -1: # check if dict for switch2 switch1 link exists
-    #                     link_capacity_dict[switch2][switch1] = link_capacity
+            break # all the links have at least the specified capacity                       
 
     slice_details[str(slice_counter)] = {
         "hosts" : slice_hosts_list,
@@ -203,7 +193,7 @@ def add_slice(slice_details, slice_counter, available_link_capacity):
     }
 
     print(f"\nSUCCESS, the slice added can be identified by number {slice_counter}\n")
-    return slice_details, available_link_capacity_updated
+    return slice_details, available_link_capacity_updated, port_to_slice, slice_to_port
 
 
 def activate_slice(is_slice_active, slice_counter):
@@ -315,17 +305,19 @@ def print_debug(slice_details, is_slice_active, available_link_capacity, slice_t
 
 def execute_operation(operation, slice_details, port_to_slice, slice_to_port, slice_counter, is_slice_active, slices_json_path, available_link_capacity):
     if operation == 1:
-        slice_details, available_link_capacity = add_slice(slice_details, slice_counter, available_link_capacity)
+        slice_details, available_link_capacity, port_to_slice, slice_to_port = add_slice(slice_details, slice_counter, available_link_capacity)
         is_slice_active[str(slice_counter)] = True
         slice_counter = slice_counter + 1
     elif operation == 2:
         is_slice_active = activate_slice(is_slice_active, slice_counter)
     elif operation == 3:
         is_slice_active = deactivate_slice(is_slice_active, slice_counter)
+    # elif operation == 4:
+    #     port_to_slice, slice_to_port = assign_slice(slice_counter, port_to_slice, slice_to_port)
     elif operation == 4:
-        port_to_slice, slice_to_port = assign_slice(slice_counter, port_to_slice, slice_to_port)
-    elif operation == 5:
         print_debug(slice_details, is_slice_active, available_link_capacity, slice_to_port)
+    elif operation == 5:
+        pass
     elif operation == 6:
         for switch in range(1,get_topology()["number_of_switches"]+1):
             rule = "sudo ovs-ofctl del-flows s"+str(switch)
@@ -345,7 +337,7 @@ def execute_operation(operation, slice_details, port_to_slice, slice_to_port, sl
     with open(slices_json_path, "w", encoding="utf-8") as f:
         json.dump(slices_options, f, ensure_ascii=False, indent=4)
 
-    if not operation == 5:
+    if not operation == 4:
         create_queues_script()
         subprocess.run(["sh queues.sh"], shell=True)
 
@@ -426,8 +418,9 @@ if __name__ == "__main__":
                 "'1' to define a slice, \n"
                 + "'2' to activate an existing slice \n"
                 + "'3' to deactivate a slice \n"
-                + "'4' to assign a slice \n"
-                + "'5' to have printed the currently defined slices \n"
+                # + "'4' to assign a slice \n"
+                + "'4' to have printed the currently defined slices \n"
+                + "'5' to force the execution of the last add-flow \n"
                 + "'6' to exit \n"
             )
 
