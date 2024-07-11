@@ -67,6 +67,7 @@ def is_link_used(path_between_hosts, adjacent_links):
     return False
 
 def create_queues_script():
+#if __name__ == "__main__":
     topology = get_topology() 
     n_hosts = topology["number_of_hosts"]
     n_switches = topology["number_of_switches"]
@@ -80,6 +81,7 @@ def create_queues_script():
     slices = get_slices() 
     slice_details = slices["slice_details"]
     slice_to_port = slices["slice_to_port"]
+    port_to_slice = slices["port_to_slice"]
     is_slice_active = slices["active_slices"]
 
     # dump all
@@ -169,6 +171,34 @@ def create_queues_script():
                                 rules_set.append(rule)
             rules_set.append("\n")
         rules_set.append("\n")
+
+    # last drops
+    for special_port in [20,21,22,554,3389,5060,5061]:
+        if not str(special_port) in port_to_slice:
+            for switch in range(1, n_switches+1):
+                for host_1 in range(1, n_hosts+1):
+                    for host_2 in range(1, n_hosts+1):
+                        if not str(host_1) == str(host_2):
+                            rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                            rule = rule + "\n"
+                            rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+
+                            rules_set.append(rule)
+        else:
+            for host_1 in range(1, n_hosts+1):
+                for host_2 in range(1, n_hosts+1):
+                    if not str(host_1) == str(host_2):
+                        if not str(host_1) in slice_details[port_to_slice[str(special_port)]]["path_between_host"] or not str(host_2) in slice_details[port_to_slice[str(special_port)]]["path_between_host"][str(host_1)] or not is_slice_active[port_to_slice[str(special_port)]]:
+                            for switch in range(1, n_switches+1):
+                                rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                                rule = rule + "\n"
+                                rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+
+                                rules_set.append(rule)
+
+        rules_set.append("\n")
+    rules_set.append("\n")
+
 
 
     f = open("queues.sh", "w")
