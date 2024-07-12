@@ -1,17 +1,4 @@
 import json 
-# def get_queue_capacity(switch_list, switch1, switch2, capacity_list):
-#     try:
-#         index1 = switch_list.index(switch1)
-#         index2 = switch_list.index(switch2)
-#         if abs(index1 - index2) == 1:
-#             if index1 < index2:
-#                 return capacity_list[index1]
-#             else:
-#                 return capacity_list[index2]
-#         else:
-#             return 0
-#     except ValueError:
-#         return 0
 
 def get_slices():
     try:
@@ -31,13 +18,6 @@ def get_topology():
         print("The topology file was not found, you have to generate it first")
         exit()
 
-# def get_ports_from_slice(my_dict, target_value):
-#     keys = []
-#     for key, value in my_dict.items():
-#         if value == target_value:
-#             keys.append(key)
-#     return keys 
-
 def convert_int_to_ip(n):
     part1 = n // (256 * 256)
     part2 = (n // 256) % 256
@@ -49,7 +29,8 @@ def convert_int_to_ip(n):
 def convert_mac_to_host_id(mac_str):
     mac_str = mac_str.replace(':', '')
 
-    host_id = int(mac_str)
+    host_id = int(mac_str, 16)
+
     return host_id
 
 def get_port_to_mac(mac_to_port):
@@ -84,20 +65,20 @@ def create_queues_script():
     port_to_slice = slices["port_to_slice"]
     is_slice_active = slices["active_slices"]
 
-    # dump all
-    dump_rules = []
+    #  rules for deleting all the previously set switch rules
+    delete_rules = []
 
     for switch in range(1,n_switches+1):
         rule = "sudo ovs-ofctl del-flows s"+str(switch)
-        dump_rules.append(rule)
+        delete_rules.append(rule)
 
+    # rules for defining the queues
     queues_definition = []
 
     for i in range(n_switches): # for every switch
         switch = str(i+1)
 
-        if switch in switch_port_to_mac:
-            # host-switch ports
+        if switch in switch_port_to_mac: # host-switch ports
             for port in switch_port_to_mac[switch]:
                 connected_host_id = convert_mac_to_host_id(switch_port_to_mac[switch][port])
                 queues_list=[]
@@ -107,16 +88,15 @@ def create_queues_script():
                 "--id=@newqos create QoS type=linux-htb \\\n"+
                 "other-config:max-rate=10000000000 \\\n")
 
-                for _slice in slice_details:
-                    if connected_host_id in slice_details[_slice]["hosts"]:
-                        queues_list.append("queues:"+_slice+"=@slice_"+_slice)
-                        queues_rate.append("--id=@slice_"+_slice+" create queue other-config:min-rate=10000 other-config:max-rate="+str(slice_details[_slice]["link_capacity"]*1000*1000))
+                for slice_ in slice_details:
+                    if connected_host_id in slice_details[slice_]["hosts"]: # queues added only if host belong to a certain slice
+                        queues_list.append("queues:"+slice_+"=@slice_"+slice_)
+                        queues_rate.append("--id=@slice_"+slice_+" create queue other-config:min-rate=10000 other-config:max-rate="+str(slice_details[slice_]["link_capacity"]*1000*1000))
 
                 if len(queues_list) > 0:
                     queues_definition.append(q_def+" \\\n".join(queues_list)+" -- \\\n"+" -- \\\n".join(queues_rate)+"\n")
 
-        # switch-switch ports
-        if switch in switch_port_to_switch:
+        if switch in switch_port_to_switch:         # switch-switch ports
           for port in switch_port_to_switch[switch]:
                 connected_switch_id = switch_port_to_switch[switch][port]
                 link_type = links_among_switches[str(switch)][str(connected_switch_id)]
@@ -128,71 +108,59 @@ def create_queues_script():
                 "--id=@newqos create QoS type=linux-htb \\\n"+
                 "other-config:max-rate="+str(link_phy_capacity*1000*1000)+" \\\n")
             
-                for _slice in slice_details:
-                    if is_link_used(slice_details[_slice]["path_between_host"], (int(switch),int(connected_switch_id))):
-                        queues_list.append("queues:"+_slice+"=@slice_"+_slice)
-                        queues_rate.append("--id=@slice_"+_slice+" create queue other-config:min-rate=10000 other-config:max-rate="+str(slice_details[_slice]["link_capacity"]*1000*1000))
+                for slice_ in slice_details:
+                    if is_link_used(slice_details[slice_]["path_between_host"], (int(switch),int(connected_switch_id))): # queues added only if link belong to a certain slice
+                        queues_list.append("queues:"+slice_+"=@slice_"+slice_)
+                        queues_rate.append("--id=@slice_"+slice_+" create queue other-config:min-rate=10000 other-config:max-rate="+str(slice_details[slice_]["link_capacity"]*1000*1000))
                 
                 if len(queues_list) > 0:
                     queues_definition.append(q_def+" \\\n".join(queues_list)+" -- \\\n"+" -- \\\n".join(queues_rate)+"\n")
 
-    # drop all
+    # specified slice to used
     rules_set = []
-    # for switch in range(1,n_switches+1):
-    #     for host_1 in range(1,n_hosts+1):
-    #         for host_2 in range(1,n_hosts+1):
-    #             if not host_1 == host_2:
-    #                 rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+", idle_timeout=0,actions=drop"
-    #                 rule = rule + "\n"
-    #                 rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+", idle_timeout=0,actions=drop"
-    #                 rule = rule + "\n"
-    #                 rule = "sudo ovs-ofctl add-flow s"+str(switch)+" ip,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",idle_timeout=0,actions=drop"
-    #                 rule = rule + "\n"
-                
-    #                 rules_set.append(rule)
 
-    # last rules
-    for _slice in slice_details:
-        for host_1 in slice_details[_slice]["hosts"]:
-            for host_2 in slice_details[_slice]["path_between_host"][str(host_1)]:
+    for slice_ in slice_details:
+        for host_1 in slice_details[slice_]["hosts"]:
+            for host_2 in slice_details[slice_]["path_between_host"][str(host_1)]:
                 if not str(host_1) == str(host_2):
-                    for switch in slice_details[_slice]["switches"]:
-                        if str(_slice) in slice_to_port:
-                            if is_slice_active[str(_slice)]:
+                    for switch in slice_details[slice_]["switches"]:
+                        if str(slice_) in slice_to_port:
+                            if is_slice_active[str(slice_)]:
                                 rule = ""
                                 
-                                if not slice_to_port[str(_slice)] == "DEFAULT":
-                                    rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
+                                if not slice_to_port[str(slice_)] == "DEFAULT": # make rule specific for port and with high priority
+                                    rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(slice_)])+",idle_timeout=0,actions=set_queue:"+slice_+",normal"
                                     rule = rule + "\n"
-                                    rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(_slice)])+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
-                                else:
-                                    rule = "sudo ovs-ofctl add-flow s"+str(switch)+" ip,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",idle_timeout=0,actions=set_queue:"+_slice+",normal"
+                                    rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(slice_to_port[str(slice_)])+",idle_timeout=0,actions=set_queue:"+slice_+",normal"
+                                else: # make rule generic with lower priority
+                                    rule = "sudo ovs-ofctl add-flow s"+str(switch)+" ip,priority=65499,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",idle_timeout=0,actions=set_queue:"+slice_+",normal"
 
                                 rules_set.append(rule)
             rules_set.append("\n")
         rules_set.append("\n")
 
-    # last drops
-    for special_port in [20,21,22,554,3389,5060,5061]:
-        if not str(special_port) in port_to_slice:
+    # drops certain link associated to special not managed ports
+    #for high_bw_ports in [20,21,22,554,3389,5060,5061]:
+    for high_bw_ports in [20]:
+        if not str(high_bw_ports) in port_to_slice:
             for switch in range(1, n_switches+1):
                 for host_1 in range(1, n_hosts+1):
                     for host_2 in range(1, n_hosts+1):
                         if not str(host_1) == str(host_2):
-                            rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                            rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(high_bw_ports)+",idle_timeout=0,actions=drop"
                             rule = rule + "\n"
-                            rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                            rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(high_bw_ports)+",idle_timeout=0,actions=drop"
 
                             rules_set.append(rule)
         else:
             for host_1 in range(1, n_hosts+1):
                 for host_2 in range(1, n_hosts+1):
                     if not str(host_1) == str(host_2):
-                        if not str(host_1) in slice_details[port_to_slice[str(special_port)]]["path_between_host"] or not str(host_2) in slice_details[port_to_slice[str(special_port)]]["path_between_host"][str(host_1)] or not is_slice_active[port_to_slice[str(special_port)]]:
+                        if not str(host_1) in slice_details[port_to_slice[str(high_bw_ports)]]["path_between_host"] or not str(host_2) in slice_details[port_to_slice[str(high_bw_ports)]]["path_between_host"][str(host_1)] or not is_slice_active[port_to_slice[str(high_bw_ports)]]:
                             for switch in range(1, n_switches+1):
-                                rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                                rule = "sudo ovs-ofctl add-flow s"+str(switch)+" tcp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(high_bw_ports)+",idle_timeout=0,actions=drop"
                                 rule = rule + "\n"
-                                rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(special_port)+",idle_timeout=0,actions=drop"
+                                rule = rule + "sudo ovs-ofctl add-flow s"+str(switch)+" udp,priority=65500,nw_src="+convert_int_to_ip(int(host_1))+",nw_dst="+convert_int_to_ip(int(host_2))+",tp_dst="+str(high_bw_ports)+",idle_timeout=0,actions=drop"
 
                                 rules_set.append(rule)
 
@@ -203,7 +171,7 @@ def create_queues_script():
 
     f = open("queues.sh", "w")
     f.write('#!/bin/sh \n\n'+
-        '\n'.join(dump_rules)+'\n\n'+
+        '\n'.join(delete_rules)+'\n\n'+
         '\n'.join(queues_definition)+'\n'+
         '\n'.join(rules_set))
     f.close()

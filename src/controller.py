@@ -111,6 +111,7 @@ class TrafficSlicing(app_manager.RyuApp):
 
             slice_number = 0
 
+            # find the slice used, only to understand if the last forwarding is valid or not
             if (pkt.get_protocol(udp.udp)):
                 if str(pkt.get_protocol(udp.udp).dst_port) in port_to_slice.keys():
                     slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
@@ -118,18 +119,18 @@ class TrafficSlicing(app_manager.RyuApp):
                 if str(pkt.get_protocol(tcp.tcp).dst_port) in port_to_slice.keys():
                     slice_number = str(port_to_slice[str(pkt.get_protocol(tcp.tcp).dst_port)])
 
-            if slice_number == 0:
-                if "DEFAULT" in port_to_slice.keys():
+            if slice_number == 0: # so, there is not an ad hoc slice for that port
+                if "DEFAULT" in port_to_slice.keys(): # use the default one if defined
                     slice_number = str(port_to_slice["DEFAULT"])
                 else:
                     print("ERROR, the controller will return because it's not present neither a slice for the port used, neither a default slice to use")
                     return
 
-            if not active_slices[str(slice_number)] == True:
+            if not active_slices[str(slice_number)] == True: # the slice found must to be active
                 print("ERROR, the slice to use is currently disabled")
                 return
 
-            if not dest_host_id in slice_details[str(slice_number)]["hosts"]:
+            if not dest_host_id in slice_details[str(slice_number)]["hosts"]: # the slice found must to involve the destination host
                 print("ERROR, the slice to use doesn't involve the destination host")
                 return
             # ended check
@@ -146,14 +147,14 @@ class TrafficSlicing(app_manager.RyuApp):
 
         elif (pkt.get_protocol(udp.udp)):
             if str(pkt.get_protocol(udp.udp).dst_port) in port_to_slice.keys():
-                slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)])
+                slice_number = str(port_to_slice[str(pkt.get_protocol(udp.udp).dst_port)]) # find the slice to use
             elif "DEFAULT" in port_to_slice.keys():
                 slice_number = str(port_to_slice["DEFAULT"])
             else:
                 print("ERROR, It is neither specified the slice to use for port "+str(pkt.get_protocol(udp.udp).dst_port)+" nor the one to use as default")
                 return
 
-            if not active_slices[str(slice_number)] == True:
+            if not active_slices[str(slice_number)] == True: # check if the slice is active
                 print("ERROR, the slice to use is currently disabled")
                 return
 
@@ -164,6 +165,7 @@ class TrafficSlicing(app_manager.RyuApp):
                 print("ERROR, the slice used doesn't involve the sender or the receiver")
                 return
 
+            # find the aoutport port of the current switch to use based on the next switch, retrievable by "path_between_host" in the details of the slice used
             out_port = get_output_port(dpid, slice_details[slice_number]["path_between_host"][src_host_id][dest_host_id], edges_to_ports)
            
             if out_port == -1:
