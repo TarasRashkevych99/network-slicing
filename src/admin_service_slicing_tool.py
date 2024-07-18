@@ -304,13 +304,13 @@ def print_debug(slice_details, is_slice_active, available_link_capacity, slice_t
                         switch_1 = str(path_between_host[i])
                         switch_2 = str(path_between_host[i + 1])
                         
-                        if switch_1 < switch_2:
-                            if not switch_1 in slice_links_dict:
-                                slice_links_dict[switch_1] = {}
-                            
-                            if not switch_2 in slice_links_dict[switch_1]: # in order to avoid to print multiple times the same link
-                                slice_links_dict[switch_1][switch_2] = True
-                                print("s"+str(switch_1)+" <--> s"+str(switch_2)+": "+str(round((slice_details[slice_]["link_capacity"]/full_link_capacity[switch_1][switch_2])*100,2))+"%")
+                        #if switch_1 < switch_2:
+                        if not switch_1 in slice_links_dict:
+                            slice_links_dict[switch_1] = {}
+                        
+                        if not switch_2 in slice_links_dict[switch_1]: # in order to avoid to print multiple times the same link
+                            slice_links_dict[switch_1][switch_2] = True
+                            print("s"+str(switch_1)+" <--> s"+str(switch_2)+": "+str(round((slice_details[slice_]["link_capacity"]/full_link_capacity[switch_1][switch_2])*100,2))+"%")
         
         if not slice_links_dict:
             print("All the links of the slice are between hosts and switches")
